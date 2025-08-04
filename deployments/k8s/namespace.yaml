@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: waf-system
+  labels:
+    app.kubernetes.io/name: waf-system
+    app.kubernetes.io/component: security
+    # Istio 서비스 메시 자동 사이드카 주입 활성화
+    istio-injection: enabled
+  annotations:
+    # 네임스페이스 생성 시간 기록
+    kubernetes.io/created-by: "waf-k8s-project"

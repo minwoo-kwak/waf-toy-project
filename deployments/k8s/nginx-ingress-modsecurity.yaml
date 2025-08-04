@@ -1,0 +1,250 @@
+# NGINX Ingress Controller with ModSecurity enabled
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-ingress-modsecurity-config
+  namespace: waf-system
+data:
+  # ModSecurity 메인 설정
+  modsecurity.conf: |
+    # ModSecurity 기본 설정
+    SecRuleEngine On
+    SecRequestBodyAccess On
+    SecRequestBodyLimit 13107200
+    SecRequestBodyNoFilesLimit 131072
+    SecRequestBodyInMemoryLimit 131072
+    SecRequestBodyLimitAction Reject
+    SecResponseBodyAccess On
+    SecResponseBodyMimeType text/plain text/html text/xml
+    SecResponseBodyLimit 524288
+    SecResponseBodyLimitAction ProcessPartial
+    SecTmpDir /tmp/
+    SecDataDir /tmp/
+    SecAuditEngine RelevantOnly
+    SecAuditLogRelevantStatus "^(?:5|4(?!04))"
+    SecAuditLogParts ABDEFHIJZ
+    SecAuditLogType Serial
+    SecAuditLog /var/log/modsec_audit.log
+    SecArgumentSeparator &
+    SecCookieFormat 0
+    SecUnicodeMapFile unicode.mapping 20127
+    SecStatusEngine On
+
+  # OWASP CRS 기본 설정
+  crs-setup.conf: |
+    # OWASP ModSecurity Core Rule Set ver.4.0.0
+    # 기본 설정
+    SecDefaultAction "phase:1,log,auditlog,deny,status:403"
+    SecDefaultAction "phase:2,log,auditlog,deny,status:403"
+    
+    # 예외 처리 (필요한 경우)
+    # SecRuleRemoveById 920100
+    
+    # 커스텀 룰 추가 가능
+    SecRule ARGS "@detectSQLi" \
+        "id:1001,\
+        phase:2,\
+        block,\
+        msg:'SQL Injection Attack Detected',\
+        logdata:'Matched Data: %{MATCHED_VAR} found within %{MATCHED_VAR_NAME}',\
+        tag:'application-multi',\
+        tag:'language-multi',\
+        tag:'platform-multi',\
+        tag:'attack-sqli'"
+
+---
+# NGINX Ingress Controller Deployment with ModSecurity
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-ingress-modsecurity
+  namespace: waf-system
+  labels:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/component: controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/component: controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/component: controller
+    spec:
+      serviceAccountName: nginx-ingress
+      containers:
+      - name: controller
+        # ModSecurity가 활성화된 NGINX Ingress Controller 이미지
+        image: registry.k8s.io/ingress-nginx/controller:v1.8.2
+        args:
+          - /nginx-ingress-controller
+          - --configmap=$(POD_NAMESPACE)/nginx-ingress-config
+          - --enable-ssl-passthrough
+          - --enable-modsecurity=true  # ModSecurity 활성화
+          - --modsecurity-config-file=/etc/nginx/modsecurity/modsecurity.conf
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        volumeMounts:
+        - name: modsecurity-config
+          mountPath: /etc/nginx/modsecurity
+          readOnly: true
+        - name: webhook-cert
+          mountPath: /usr/local/certificates/
+          readOnly: true
+        # 리소스 제한 설정 (실무에서 중요)
+        resources:
+          requests:
+            memory: 90Mi
+            cpu: 100m
+          limits:
+            memory: 512Mi
+            cpu: 500m
+        # 헬스체크 설정
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 10254
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 10254
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+      volumes:
+      - name: modsecurity-config
+        configMap:
+          name: nginx-ingress-modsecurity-config
+      - name: webhook-cert
+        secret:
+          secretName: webhook-cert
+
+---
+# Service Account for NGINX Ingress
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nginx-ingress
+  namespace: waf-system
+
+---
+# ClusterRole for NGINX Ingress
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nginx-ingress
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - endpoints
+      - nodes
+      - pods
+      - secrets
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - "extensions"
+      - "networking.k8s.io"
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - "extensions"
+      - "networking.k8s.io"
+    resources:
+      - ingresses/status
+    verbs:
+      - update
+
+---
+# ClusterRoleBinding for NGINX Ingress
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nginx-ingress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nginx-ingress
+subjects:
+  - kind: ServiceAccount
+    name: nginx-ingress
+    namespace: waf-system
+
+---
+# Service for NGINX Ingress Controller
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress
+  namespace: waf-system
+  labels:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/component: controller
+spec:
+  type: LoadBalancer  # Docker Desktop에서는 NodePort도 사용 가능
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+    - name: https
+      port: 443
+      targetPort: 443
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/component: controller

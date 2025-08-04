@@ -1,0 +1,209 @@
+# 테스트용 웹 애플리케이션 - WAF 테스트 대상
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-webapp
+  namespace: waf-system
+  labels:
+    app: test-webapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: test-webapp
+  template:
+    metadata:
+      labels:
+        app: test-webapp
+      annotations:
+        # Prometheus 메트릭 수집을 위한 어노테이션
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: webapp
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+          name: http
+        # 커스텀 nginx 설정으로 테스트 페이지 제공
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+        - name: html-content
+          mountPath: /usr/share/nginx/html
+        resources:
+          requests:
+            memory: 32Mi
+            cpu: 10m
+          limits:
+            memory: 128Mi
+            cpu: 100m
+        # 컨테이너 헬스체크
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: test-webapp-config
+      - name: html-content
+        configMap:
+          name: test-webapp-html
+
+---
+# NGINX 설정 ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-webapp-config
+  namespace: waf-system
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name localhost;
+        
+        # 액세스 로그 활성화
+        access_log /var/log/nginx/access.log;
+        error_log /var/log/nginx/error.log;
+        
+        location / {
+            root /usr/share/nginx/html;
+            index index.html;
+        }
+        
+        # API 엔드포인트 시뮬레이션
+        location /api/ {
+            return 200 '{"status":"ok","message":"API response","timestamp":"$time_iso8601"}';
+            add_header Content-Type application/json;
+        }
+        
+        # 로그인 폼 시뮬레이션 (SQL Injection 테스트용)
+        location /login {
+            return 200 '{"login_form":"username and password required"}';
+            add_header Content-Type application/json;
+        }
+        
+        # 검색 기능 시뮬레이션 (XSS 테스트용)
+        location /search {
+            return 200 '{"search_results":"results for query: $arg_q"}';
+            add_header Content-Type application/json;
+        }
+    }
+
+---
+# HTML 콘텐츠 ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-webapp-html
+  namespace: waf-system
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>WAF 테스트 애플리케이션</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .container { max-width: 800px; margin: 0 auto; }
+            .test-section { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 5px; }
+            .attack-test { background: #ffe6e6; border: 1px solid #ff9999; }
+            code { background: #e9e9e9; padding: 2px 4px; border-radius: 3px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🛡️ WAF 테스트 애플리케이션</h1>
+            <p>이 페이지는 ModSecurity + OWASP CRS WAF 동작을 테스트하기 위한 용도입니다.</p>
+            
+            <div class="test-section">
+                <h2>✅ 정상 요청 테스트</h2>
+                <ul>
+                    <li><a href="/api/users">GET /api/users</a> - 정상 API 호출</li>
+                    <li><a href="/search?q=kubernetes">GET /search?q=kubernetes</a> - 정상 검색</li>
+                    <li><a href="/login">GET /login</a> - 로그인 페이지</li>
+                </ul>
+            </div>
+            
+            <div class="test-section attack-test">
+                <h2>🚫 공격 테스트 (WAF가 차단해야 함)</h2>
+                <p><strong>주의:</strong> 아래 링크들은 WAF에 의해 차단될 것입니다.</p>
+                <ul>
+                    <li><code>/?id=1' OR '1'='1</code> - SQL Injection</li>
+                    <li><code>/?q=&lt;script&gt;alert(1)&lt;/script&gt;</code> - XSS</li>
+                    <li><code>/?file=../../../etc/passwd</code> - Path Traversal</li>
+                    <li><code>/login?user=admin'--</code> - SQL Injection in login</li>
+                </ul>
+            </div>
+            
+            <div class="test-section">
+                <h2>📊 모니터링</h2>
+                <p>WAF 로그를 확인하려면:</p>
+                <pre><code>kubectl logs -f deployment/nginx-ingress-modsecurity -n waf-system</code></pre>
+            </div>
+        </div>
+    </body>
+    </html>
+
+---
+# Service for Test WebApp
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-webapp-service
+  namespace: waf-system
+  labels:
+    app: test-webapp
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+  selector:
+    app: test-webapp
+
+---
+# Ingress for Test WebApp (WAF를 통해 접근)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-webapp-ingress
+  namespace: waf-system
+  annotations:
+    # NGINX Ingress 설정
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # ModSecurity 어노테이션
+    nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+    nginx.ingress.kubernetes.io/modsecurity-transaction-id: "$request_id"
+    nginx.ingress.kubernetes.io/modsecurity-snippet: |
+      SecRuleEngine On
+      SecAuditEngine On
+spec:
+  rules:
+  - host: waf-test.local  # /etc/hosts에 추가 필요: 127.0.0.1 waf-test.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: test-webapp-service
+            port:
+              number: 80

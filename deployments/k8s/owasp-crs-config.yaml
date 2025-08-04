@@ -1,0 +1,321 @@
+# OWASP ModSecurity Core Rule Set 설정
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: owasp-crs-config
+  namespace: waf-system
+  labels:
+    app.kubernetes.io/name: owasp-crs
+    app.kubernetes.io/version: "4.0.0"
+data:
+  # OWASP CRS 메인 설정 파일
+  crs-setup.conf: |
+    # OWASP ModSecurity Core Rule Set ver.4.0.0
+    # Copyright (c) 2006-2020 Trustwave and contributors. All rights reserved.
+    #
+    # The OWASP ModSecurity Core Rule Set is distributed under
+    # Apache Software License (ASL) version 2
+
+    # 기본 설정
+    SecDefaultAction "phase:1,log,auditlog,pass"
+
+    # === Paranoia Level 설정 ===
+    # Level 1: 기본 보안 (권장)
+    # Level 2: 중간 보안 (일부 오탐 가능)
+    # Level 3: 높은 보안 (오탐 증가)
+    # Level 4: 최고 보안 (많은 오탐)
+    SecAction \
+      "id:900000,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:tx.paranoia_level=1"
+
+    # === 이상 점수 임계값 ===
+    # 인바운드 이상 점수 임계값 (기본: 5)
+    SecAction \
+      "id:900010,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:tx.inbound_anomaly_score_threshold=5"
+
+    # 아웃바운드 이상 점수 임계값 (기본: 4)
+    SecAction \
+      "id:900011,\
+       phase:3,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:tx.outbound_anomaly_score_threshold=4"
+
+    # === SQL Injection 보호 ===
+    SecAction \
+      "id:900020,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:tx.sql_injection_score_threshold=5"
+
+    # === XSS 보호 ===
+    SecAction \
+      "id:900021,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:tx.xss_score_threshold=5"
+
+    # === RFI/LFI 보호 ===
+    SecAction \
+      "id:900022,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:tx.lfi_score_threshold=5"
+
+    # === RCE 보호 ===
+    SecAction \
+      "id:900023,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:tx.rce_score_threshold=5"
+
+    # === 허용된 HTTP 메소드 ===
+    SecAction \
+      "id:900200,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:'tx.allowed_methods=GET HEAD POST OPTIONS PUT PATCH DELETE'"
+
+    # === 허용된 요청 Content-Type ===
+    SecAction \
+      "id:900220,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:'tx.allowed_request_content_type=|application/x-www-form-urlencoded| |multipart/form-data| |multipart/related| |text/xml| |application/xml| |application/soap+xml| |application/x-amf| |application/json| |application/cloudevents+json| |application/cloudevents-batch+json| |text/plain|'"
+
+    # === 제한된 파일 확장자 ===
+    SecAction \
+      "id:900240,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:'tx.restricted_extensions=.asa/ .asax/ .ascx/ .axd/ .backup/ .bak/ .bat/ .cdx/ .cer/ .cfg/ .cmd/ .com/ .config/ .conf/ .cs/ .csproj/ .csr/ .dat/ .db/ .dbf/ .dll/ .dos/ .htr/ .htw/ .ida/ .idc/ .idq/ .inc/ .ini/ .key/ .licx/ .lnk/ .log/ .mdb/ .old/ .pass/ .pdb/ .pol/ .printer/ .pwd/ .resources/ .resx/ .sql/ .sys/ .vb/ .vbs/ .vbproj/ .vsdisco/ .webinfo/ .xsd/ .xsx/'"
+
+    # === 제한된 헤더 ===
+    SecAction \
+      "id:900250,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:'tx.restricted_headers=/proxy-connection/ /lock-token/ /content-range/ /translate/ /if/'"
+
+    # === 차단 모드 설정 ===
+    # 0: 탐지만 (로그만 기록)
+    # 1: 차단 모드 (실제 차단)
+    SecAction \
+      "id:900300,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:tx.blocking_paranoia_level=1"
+
+    # === 샘플링 백분율 ===
+    # 100: 모든 요청 처리
+    # 50: 50% 요청만 처리 (성능 향상)
+    SecAction \
+      "id:900400,\
+       phase:1,\
+       nolog,\
+       pass,\
+       t:none,\
+       setvar:tx.sampling_percentage=100"
+
+    # === 커스텀 룰 추가 ===
+    
+    # 한국어 특수 문자 처리
+    SecRule ARGS "@detectXSS" \
+        "id:900500,\
+        phase:2,\
+        block,\
+        msg:'Korean XSS Attack Detected',\
+        logdata:'Matched Data: %{MATCHED_VAR} found within %{MATCHED_VAR_NAME}',\
+        tag:'application-multi',\
+        tag:'language-korean',\
+        tag:'platform-multi',\
+        tag:'attack-xss'"
+
+    # API 엔드포인트 특별 보호
+    SecRule REQUEST_URI "@beginsWith /api/" \
+        "id:900501,\
+        phase:1,\
+        pass,\
+        nolog,\
+        setvar:tx.api_protection=1"
+
+    # JSON 요청 특별 처리
+    SecRule REQUEST_HEADERS:Content-Type "@contains application/json" \
+        "id:900502,\
+        phase:1,\
+        pass,\
+        nolog,\
+        setvar:tx.json_request=1"
+
+    # 로그인 엔드포인트 강화 보호
+    SecRule REQUEST_URI "@contains /login" \
+        "id:900503,\
+        phase:2,\
+        pass,\
+        nolog,\
+        setvar:tx.login_protection=1,\
+        setvar:tx.inbound_anomaly_score_threshold=3"
+
+  # 커스텀 룰 파일
+  custom-rules.conf: |
+    # 커스텀 보안 룰들
+    
+    # Rate Limiting (IP당 분당 100회 제한)
+    SecRule IP:REQUEST_COUNT "@gt 100" \
+        "id:1001,\
+        phase:1,\
+        deny,\
+        status:429,\
+        msg:'Rate limit exceeded',\
+        logdata:'IP: %{REMOTE_ADDR} exceeded rate limit',\
+        setvar:ip.request_count=+1,\
+        expirevar:ip.request_count=60"
+
+    # 악성 User-Agent 차단
+    SecRule REQUEST_HEADERS:User-Agent "@pmFromFile /etc/modsecurity/bad-user-agents.txt" \
+        "id:1002,\
+        phase:1,\
+        deny,\
+        status:403,\
+        msg:'Malicious User-Agent detected',\
+        logdata:'User-Agent: %{REQUEST_HEADERS.User-Agent}'"
+
+    # 대용량 POST 요청 제한 (10MB)
+    SecRule REQUEST_BODY "@gt 10485760" \
+        "id:1003,\
+        phase:2,\
+        deny,\
+        status:413,\
+        msg:'Request body too large',\
+        logdata:'Request body size: %{REQUEST_BODY_LENGTH}'"
+
+    # Kubernetes 특화 보안 (Service Account Token 보호)
+    SecRule ARGS "@contains /var/run/secrets/kubernetes.io" \
+        "id:1004,\
+        phase:2,\
+        deny,\
+        status:403,\
+        msg:'Kubernetes service account token access attempt',\
+        tag:'attack-lfi',\
+        tag:'platform-kubernetes'"
+
+    # 컨테이너 이스케이프 시도 탐지
+    SecRule ARGS "@rx (?:/proc/self/root|/proc/\d+/root|\.\.\/.*\/\.\.\/)" \
+        "id:1005,\
+        phase:2,\
+        deny,\
+        status:403,\
+        msg:'Container escape attempt detected',\
+        tag:'attack-container-escape'"
+
+  # 악성 User-Agent 목록
+  bad-user-agents.txt: |
+    sqlmap
+    nikto
+    gobuster
+    dirbuster
+    burpsuite
+    nessus
+    openvas
+    acunetix
+    netsparker
+    w3af
+    skipfish
+    wpscan
+    masscan
+    nmap
+    zap
+    <script
+    javascript:
+    vbscript:
+
+---
+# ModSecurity 메인 설정 파일
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: modsecurity-config
+  namespace: waf-system
+data:
+  modsecurity.conf: |
+    # ModSecurity 설정 파일
+    
+    # === 기본 엔진 설정 ===
+    SecRuleEngine On
+    SecRequestBodyAccess On
+    SecResponseBodyAccess On
+    
+    # === 요청 본문 제한 ===
+    SecRequestBodyLimit 13107200          # 12.5MB
+    SecRequestBodyNoFilesLimit 131072     # 128KB
+    SecRequestBodyInMemoryLimit 131072    # 128KB
+    SecRequestBodyLimitAction Reject
+    
+    # === 응답 본문 설정 ===
+    SecResponseBodyMimeType text/plain text/html text/xml application/json
+    SecResponseBodyLimit 524288           # 512KB
+    SecResponseBodyLimitAction ProcessPartial
+    
+    # === 파일 업로드 설정 ===
+    SecTmpDir /tmp/
+    SecDataDir /tmp/
+    SecUploadDir /tmp/
+    SecUploadKeepFiles RelevantOnly
+    SecUploadFileMode 0600
+    
+    # === 로깅 설정 ===
+    SecAuditEngine RelevantOnly
+    SecAuditLogRelevantStatus "^(?:5|4(?!04))"
+    SecAuditLogParts ABDEFHIJZ
+    SecAuditLogType Serial
+    SecAuditLog /var/log/modsec_audit.log
+    
+    # === 기타 설정 ===
+    SecArgumentSeparator &
+    SecCookieFormat 0
+    SecUnicodeMapFile unicode.mapping 20127
+    SecStatusEngine On
+    
+    # === 디버그 설정 (개발 환경용) ===
+    SecDebugLog /var/log/modsec_debug.log
+    SecDebugLogLevel 3
+    
+    # === 성능 최적화 ===
+    SecPcreMatchLimit 100000
+    SecPcreMatchLimitRecursion 100000
+    
+    # === 한국어 인코딩 지원 ===
+    SecUnicodeCodePage 65001
+    SecUnicodeMapFile unicode.mapping 65001
+    
+    # === 커스텀 에러 페이지 ===
+    SecDefaultAction "phase:1,log,auditlog,deny,status:403,\
+                      msg:'WAF에 의해 차단된 요청입니다. 문의: admin@company.com'"
