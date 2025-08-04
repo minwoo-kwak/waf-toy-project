@@ -1,0 +1,497 @@
+# Prometheus 배포
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: waf-system
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        ports:
+        - containerPort: 9090
+          name: web
+        args:
+          - '--config.file=/etc/prometheus/prometheus.yml'
+          - '--storage.tsdb.path=/prometheus/'
+          - '--web.console.libraries=/etc/prometheus/console_libraries'
+          - '--web.console.templates=/etc/prometheus/consoles'
+          - '--storage.tsdb.retention.time=15d'
+          - '--web.enable-lifecycle'
+          - '--web.enable-admin-api'
+        volumeMounts:
+        - name: prometheus-config
+          mountPath: /etc/prometheus
+        - name: prometheus-storage
+          mountPath: /prometheus
+        resources:
+          requests:
+            memory: 512Mi
+            cpu: 200m
+          limits:
+            memory: 1Gi
+            cpu: 500m
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: prometheus-config
+        configMap:
+          name: prometheus-config
+      - name: prometheus-storage
+        emptyDir: {}
+
+---
+# Prometheus Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: waf-system
+  labels:
+    app: prometheus
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9090
+      targetPort: 9090
+      protocol: TCP
+      name: web
+  selector:
+    app: prometheus
+
+---
+# Prometheus ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: waf-system
+
+---
+# Prometheus ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - extensions
+  resources:
+  - ingresses
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+
+---
+# Prometheus ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+- kind: ServiceAccount
+  name: prometheus
+  namespace: waf-system
+
+---
+# Prometheus 설정 ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: waf-system
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    # WAF 보안 관련 알림 룰
+    rule_files:
+      - "waf_alerts.yml"
+
+    scrape_configs:
+      # WAF Gateway 메트릭 수집
+      - job_name: 'waf-gateway'
+        static_configs:
+          - targets: ['waf-gateway-service:8080']
+        metrics_path: '/metrics'
+        scrape_interval: 10s
+        scrape_timeout: 5s
+
+      # Kubernetes 클러스터 메트릭
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+        - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: default;kubernetes;https
+
+      # WAF 시스템 내의 모든 서비스
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+            - waf-system
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+
+      # Redis 메트릭 (redis_exporter 사용 시)
+      - job_name: 'redis'
+        static_configs:
+          - targets: ['redis-service:6379']
+        metrics_path: '/metrics'
+
+      # NGINX Ingress 메트릭
+      - job_name: 'nginx-ingress'
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+            - waf-system
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          action: keep
+          regex: nginx-ingress
+
+  # WAF 보안 알림 룰
+  waf_alerts.yml: |
+    groups:
+    - name: waf_security_alerts
+      rules:
+      # Rate Limit 초과 알림
+      - alert: HighRateLimitHits
+        expr: rate(waf_rate_limit_hits_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "높은 Rate Limit 초과 감지"
+          description: "{{ $labels.client_ip }}에서 5분간 평균 {{ $value }}회/초의 rate limit 초과가 발생했습니다."
+
+      # 보안 위협 탐지 알림
+      - alert: SecurityThreatDetected
+        expr: rate(waf_threat_detections_total[1m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "보안 위협 탐지"
+          description: "{{ $labels.threat_type }} 위협이 1분간 {{ $value }}회 탐지되었습니다."
+
+      # 차단된 요청 급증 알림
+      - alert: HighBlockedRequests
+        expr: rate(waf_blocked_requests_total[5m]) > 20
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "차단된 요청 급증"
+          description: "5분간 평균 {{ $value }}회/초의 요청이 차단되고 있습니다."
+
+      # WAF 서비스 다운 알림
+      - alert: WAFServiceDown
+        expr: up{job="waf-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "WAF 서비스 다운"
+          description: "WAF Gateway 서비스가 {{ $value }}분간 다운되었습니다."
+
+      # 높은 응답시간 알림
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(waf_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "높은 응답시간"
+          description: "95퍼센타일 응답시간이 {{ $value }}초입니다."
+
+---
+# Grafana 배포
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: waf-system
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.0.0
+        ports:
+        - containerPort: 3000
+          name: grafana
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin123!"  # 실제 운영에서는 Secret 사용
+        - name: GF_USERS_ALLOW_SIGN_UP
+          value: "false"
+        - name: GF_SECURITY_ALLOW_EMBEDDING
+          value: "true"
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "true"
+        - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+          value: "Viewer"
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+        - name: grafana-config
+          mountPath: /etc/grafana/provisioning
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m
+          limits:
+            memory: 512Mi
+            cpu: 300m
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: grafana-storage
+        emptyDir: {}
+      - name: grafana-config
+        configMap:
+          name: grafana-config
+
+---
+# Grafana Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: waf-system
+  labels:
+    app: grafana
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: grafana
+  selector:
+    app: grafana
+
+---
+# Grafana 설정 ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: waf-system
+data:
+  # 데이터소스 자동 설정
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus:9090
+      isDefault: true
+      editable: true
+
+  # 대시보드 자동 로드 설정  
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards
+
+  # WAF 대시보드 JSON
+  waf-dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "WAF Security Dashboard",
+        "tags": ["waf", "security"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Request Rate",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "rate(waf_requests_total[5m])",
+                "legendFormat": "Requests/sec"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "thresholds"
+                },
+                "thresholds": {
+                  "steps": [
+                    {"color": "green", "value": null},
+                    {"color": "yellow", "value": 100},
+                    {"color": "red", "value": 1000}
+                  ]
+                }
+              }
+            },
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Blocked Requests",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "rate(waf_blocked_requests_total[5m])",
+                "legendFormat": "Blocked/sec"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "thresholds"
+                },
+                "thresholds": {
+                  "steps": [
+                    {"color": "green", "value": null},
+                    {"color": "yellow", "value": 1},
+                    {"color": "red", "value": 10}
+                  ]
+                }
+              }
+            },
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "Response Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, rate(waf_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "50th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.95, rate(waf_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "95th percentile"
+              }
+            ],
+            "yAxes": [
+              {
+                "unit": "s",
+                "min": 0
+              }
+            ],
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "Threat Detection by Type",
+            "type": "piechart",
+            "targets": [
+              {
+                "expr": "sum by (threat_type) (waf_threat_detections_total)",
+                "legendFormat": "{{ threat_type }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+          },
+          {
+            "id": 5,
+            "title": "Top Blocked IPs",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "topk(10, sum by (client_ip) (waf_blocked_requests_total))",
+                "format": "table"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "5s"
+      }
+    }
