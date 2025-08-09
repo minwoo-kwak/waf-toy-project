@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: waf-gateway
+  namespace: waf-system
+  labels:
+    app: waf-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: waf-gateway
+  template:
+    metadata:
+      labels:
+        app: waf-gateway
+    spec:
+      containers:
+      - name: waf-gateway
+        image: waf-gateway:v1754737514
+        imagePullPolicy: IfNotPresent  # 로컬 이미지 사용
+        ports:
+        - containerPort: 8080
+        env:
+        - name: REDIS_URL
+          value: "redis://redis-service.waf-system.svc.cluster.local:6379"
+        - name: PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: 64Mi
+            cpu: 100m
+          limits:
+            memory: 256Mi
+            cpu: 500m
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: waf-gateway-service
+  namespace: waf-system
+  labels:
+    app: waf-gateway
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080  # 외부 접근용 포트
+      protocol: TCP
+  selector:
+    app: waf-gateway

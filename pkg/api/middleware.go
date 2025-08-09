@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -304,43 +306,42 @@ func (w *WAFMiddleware) isSuspiciousRequest(param gin.LogFormatterParams) bool {
 	return false
 }
 
-// detectThreats 위협 탐지
+// detectThreats 고급 위협 탐지 엔진 (URL 디코딩 + 정규식)
 func (w *WAFMiddleware) detectThreats(path, query, userAgent string) []string {
 	var threats []string
 	
-	path = strings.ToLower(path)
-	query = strings.ToLower(query)
+	// 1. URL 디코딩 처리 (여러 단계)
+	decodedPath := w.multiStageURLDecode(path)
+	decodedQuery := w.multiStageURLDecode(query)
 	userAgent = strings.ToLower(userAgent)
 	
-	// SQL Injection 탐지
-	sqlPatterns := []string{"union select", "' or '1'='1", "drop table", "exec xp_"}
-	for _, pattern := range sqlPatterns {
-		if strings.Contains(path, pattern) || strings.Contains(query, pattern) {
-			threats = append(threats, "SQL_INJECTION")
-			break
-		}
+	// 2. SQL Injection 탐지 (정규식 기반)
+	if w.detectSQLInjection(decodedPath, decodedQuery) {
+		threats = append(threats, "SQL_INJECTION")
 	}
 	
-	// XSS 탐지
-	xssPatterns := []string{"<script>alert", "javascript:alert", "<img src=x onerror="}
-	for _, pattern := range xssPatterns {
-		if strings.Contains(path, pattern) || strings.Contains(query, pattern) {
-			threats = append(threats, "XSS")
-			break
-		}
+	// 3. XSS 탐지 (정규식 기반)
+	if w.detectXSS(decodedPath, decodedQuery) {
+		threats = append(threats, "XSS")
 	}
 	
-	// Command Injection 탐지
-	cmdPatterns := []string{"; cat ", "| nc ", "&& whoami", "$(curl"}
-	for _, pattern := range cmdPatterns {
-		if strings.Contains(query, pattern) {
-			threats = append(threats, "COMMAND_INJECTION")
-			break
-		}
+	// 4. Command Injection 탐지
+	if w.detectCommandInjection(decodedQuery) {
+		threats = append(threats, "COMMAND_INJECTION")
 	}
 	
-	// 악성 User-Agent 탐지
-	maliciousUA := []string{"sqlmap", "nikto", "burpsuite", "nessus", "acunetix"}
+	// 5. Path Traversal 탐지
+	if w.detectPathTraversal(decodedPath, decodedQuery) {
+		threats = append(threats, "PATH_TRAVERSAL")
+	}
+	
+	// 6. LDAP Injection 탐지
+	if w.detectLDAPInjection(decodedQuery) {
+		threats = append(threats, "LDAP_INJECTION")
+	}
+	
+	// 7. 악성 User-Agent 탐지
+	maliciousUA := []string{"sqlmap", "nikto", "burpsuite", "nessus", "acunetix", "w3af", "havij", "pangolin"}
 	for _, ua := range maliciousUA {
 		if strings.Contains(userAgent, ua) {
 			threats = append(threats, "MALICIOUS_USER_AGENT")
@@ -348,21 +349,133 @@ func (w *WAFMiddleware) detectThreats(path, query, userAgent string) []string {
 		}
 	}
 	
-	// Path Traversal 탐지
-	if strings.Contains(path, "../") || strings.Contains(query, "../") {
-		threats = append(threats, "PATH_TRAVERSAL")
+	return threats
+}
+
+// multiStageURLDecode 다단계 URL 디코딩
+func (w *WAFMiddleware) multiStageURLDecode(input string) string {
+	decoded := strings.ToLower(input)
+	
+	// 최대 3단계 디코딩 (이중, 삼중 인코딩 대응)
+	for i := 0; i < 3; i++ {
+		newDecoded, err := url.QueryUnescape(decoded)
+		if err != nil || newDecoded == decoded {
+			break
+		}
+		decoded = newDecoded
 	}
 	
-	return threats
+	// HTML 엔티티 디코딩
+	decoded = strings.ReplaceAll(decoded, "&lt;", "<")
+	decoded = strings.ReplaceAll(decoded, "&gt;", ">")
+	decoded = strings.ReplaceAll(decoded, "&amp;", "&")
+	decoded = strings.ReplaceAll(decoded, "&quot;", "\"")
+	decoded = strings.ReplaceAll(decoded, "&#39;", "'")
+	decoded = strings.ReplaceAll(decoded, "&#x27;", "'")
+	decoded = strings.ReplaceAll(decoded, "&#x2F;", "/")
+	
+	return decoded
+}
+
+// detectSQLInjection 고급 SQL Injection 탐지
+func (w *WAFMiddleware) detectSQLInjection(path, query string) bool {
+	// SQL Injection 정규식 패턴들
+	sqlRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(\s|^|\+|%20)(union|select|insert|update|delete|drop|create|alter|exec|execute)\s+`),
+		regexp.MustCompile(`(?i)'(\s|%20)*(or|and)(\s|%20)*'?[1-9](\s|%20)*'?(\s|%20)*=(\s|%20)*'?[1-9]`),
+		regexp.MustCompile(`(?i)'(\s|%20)*(or|and)(\s|%20)*[1-9](\s|%20)*=(\s|%20)*[1-9]`),
+		regexp.MustCompile(`(?i)(;|--|\/\*|\*\/).*?(drop|delete|insert|exec|xp_|sp_)`),
+		regexp.MustCompile(`(?i)(sleep|waitfor|benchmark|pg_sleep)\s*\(`),
+		regexp.MustCompile(`(?i)(\'\s*;\s*(exec|execute|drop|create|alter|insert|update|delete))`),
+		regexp.MustCompile(`(?i)(convert|cast|char|ascii|substring|mid|length)\s*\(`),
+		regexp.MustCompile(`(?i)0x[0-9a-f]+`), // Hex 인코딩
+	}
+	
+	combined := path + " " + query
+	for _, regex := range sqlRegexes {
+		if regex.MatchString(combined) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// detectXSS 고급 XSS 탐지
+func (w *WAFMiddleware) detectXSS(path, query string) bool {
+	// XSS 정규식 패턴들
+	xssRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)<\s*(script|iframe|object|embed|form|img|svg|video|audio|meta|link|style)`),
+		regexp.MustCompile(`(?i)(javascript|vbscript|data|livescript|mocha|ecmascript):`),
+		regexp.MustCompile(`(?i)on(load|error|click|focus|blur|change|submit|reset|select|resize|scroll|mouse|key)\s*=`),
+		regexp.MustCompile(`(?i)(eval|settimeout|setinterval|function|alert|confirm|prompt|document\.write|document\.cookie)\s*\(`),
+		regexp.MustCompile(`(?i)<\s*[^>]*(\s|\+|%20)(on\w+|href|src|data|action)\s*=`),
+		regexp.MustCompile(`(?i)(expression|url|import|@import)\s*\(`),
+		regexp.MustCompile(`(?i)(\\x[0-9a-f]{2}|\\u[0-9a-f]{4}|&#x[0-9a-f]+;|&#\d+;)`), // 인코딩된 문자
+	}
+	
+	combined := path + " " + query
+	for _, regex := range xssRegexes {
+		if regex.MatchString(combined) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// detectCommandInjection 명령어 주입 탐지
+func (w *WAFMiddleware) detectCommandInjection(query string) bool {
+	cmdRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(;|&&|\|\||\|)(\s|%20)*(cat|ls|dir|type|more|less|head|tail|grep|find|ps|netstat|ifconfig|ping|curl|wget|nc|ncat|telnet|ssh)`),
+		regexp.MustCompile(`(?i)\$\([^)]*\)|` + "`" + `[^` + "`" + `]*` + "`"),
+		regexp.MustCompile(`(?i)(cmd\.exe|powershell|bash|sh|zsh|/bin/|/usr/bin/|system\(|exec\(|passthru\(|shell_exec\()`),
+	}
+	
+	for _, regex := range cmdRegexes {
+		if regex.MatchString(query) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// detectPathTraversal 경로 조작 탐지
+func (w *WAFMiddleware) detectPathTraversal(path, query string) bool {
+	pathRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(\.\./|\.\.\\|%2e%2e%2f|%2e%2e%5c|%252e%252e%252f)`),
+		regexp.MustCompile(`(?i)(\\|\/)?(etc|boot|sys|proc|win|windows|system32)(\\|\/)`),
+		regexp.MustCompile(`(?i)(passwd|shadow|hosts|config|\.ssh|\.aws|web\.config|\.env)`),
+	}
+	
+	combined := path + " " + query
+	for _, regex := range pathRegexes {
+		if regex.MatchString(combined) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// detectLDAPInjection LDAP 인젝션 탐지
+func (w *WAFMiddleware) detectLDAPInjection(query string) bool {
+	ldapRegex := regexp.MustCompile(`(?i)(\*|\\|\(|\)|&|\||\!|=|<|>|~|%2a|%28|%29|%26|%7c|%21|%3d|%3c|%3e|%7e)`)
+	if strings.Contains(query, "ldap") || strings.Contains(query, "dc=") || strings.Contains(query, "cn=") {
+		return ldapRegex.MatchString(query)
+	}
+	return false
 }
 
 // calculateThreatScore 위협 점수 계산
 func (w *WAFMiddleware) calculateThreatScore(threats []string) int {
 	scoreMap := map[string]int{
-		"SQL_INJECTION":        9,
+		"SQL_INJECTION":        10,
 		"COMMAND_INJECTION":    10,
-		"XSS":                  7,
-		"PATH_TRAVERSAL":       6,
+		"XSS":                  9,
+		"PATH_TRAVERSAL":       7,
+		"LDAP_INJECTION":       8,
 		"MALICIOUS_USER_AGENT": 8,
 	}
 	

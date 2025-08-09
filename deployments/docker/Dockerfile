@@ -23,10 +23,19 @@ RUN addgroup -g 1000 -S appgroup && \
 
 # 타임존 및 CA 인증서 설치
 RUN apk --no-cache add ca-certificates tzdata
-WORKDIR /root/
+
+# 앱 디렉터리 생성 및 소유권 설정
+RUN mkdir -p /app && chown -R appuser:appgroup /app
+WORKDIR /app
 
 # 빌드된 바이너리 복사
 COPY --from=builder /app/waf-gateway .
+
+# 웹 파일들 복사
+COPY --from=builder /app/web/build ./web/build
+
+# 파일 소유권 설정
+RUN chown -R appuser:appgroup /app
 
 # 사용자 변경
 USER appuser

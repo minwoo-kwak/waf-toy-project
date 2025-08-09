@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -148,6 +149,24 @@ func main() {
 
 // setupRoutes 라우트 설정
 func setupRoutes(router *gin.Engine, rateLimiter *ratelimit.RedisRateLimiter) {
+	// React 앱을 루트에서 서빙
+	router.StaticFS("/static", http.Dir("./web/build/static"))
+	router.StaticFile("/favicon.ico", "./web/build/favicon.ico")
+	
+	// 루트 경로에서 React index.html 서빙 (파일 존재 확인)
+	router.GET("/", func(c *gin.Context) {
+		// 파일 존재 확인
+		filePath := "./web/build/index.html"
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "index.html not found",
+				"path":  filePath,
+			})
+			return
+		}
+		c.File(filePath)
+	})
+
 	// 헬스체크 엔드포인트
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -253,6 +272,64 @@ func setupRoutes(router *gin.Engine, rateLimiter *ratelimit.RedisRateLimiter) {
 			},
 		})
 	})
+
+	// SPA 라우팅을 위한 catch-all (React Router) - 다른 경로들보다 나중에 추가
+	router.NoRoute(func(c *gin.Context) {
+		// API 경로가 아닌 경우에만 React 앱으로 라우팅
+		if !strings.HasPrefix(c.Request.URL.Path, "/api") && 
+		   !strings.HasPrefix(c.Request.URL.Path, "/health") &&
+		   !strings.HasPrefix(c.Request.URL.Path, "/metrics") {
+			filePath := "./web/build/index.html"
+			if _, err := os.Stat(filePath); os.IsNotExist(err) {
+				c.JSON(http.StatusNotFound, gin.H{
+					"error": "index.html not found",
+					"path":  filePath,
+				})
+				return
+			}
+			c.File(filePath)
+			return
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": "Route not found"})
+	})
+
+	// 대시보드 API
+	dashboardAPI := router.Group("/api")
+	{
+		dashboardAPI.GET("/stats", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"totalRequests":    125847,
+				"blockedRequests":  2341,
+				"blockRate":        1.86,
+				"uniqueVisitors":   8924,
+				"avgResponseTime":  245.6,
+				"uptime":          99.98,
+			})
+		})
+		
+		dashboardAPI.GET("/threats", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"recentThreats": []gin.H{
+					{
+						"timestamp":   time.Now().Add(-5 * time.Minute).Unix(),
+						"clientIP":    "192.168.1.100", 
+						"attackType":  "SQL_INJECTION",
+						"severity":    "high",
+						"blocked":     true,
+						"path":        "/test?id=1' OR '1'='1",
+					},
+					{
+						"timestamp":   time.Now().Add(-8 * time.Minute).Unix(),
+						"clientIP":    "10.0.0.50",
+						"attackType":  "XSS", 
+						"severity":    "medium",
+						"blocked":     true,
+						"path":        "/test?q=<script>alert(1)</script>",
+					},
+				},
+			})
+		})
+	}
 
 	// API 그룹
 	api := router.Group("/api/v1")
@@ -423,3 +500,4 @@ func getEnv(key, defaultValue string) string {
 	}
 	return defaultValue
 }
+

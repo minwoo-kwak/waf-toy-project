@@ -29,4 +29,70 @@ go.work.sum
 
 # Editor/IDE
 # .idea/
-# .vscode/
+.vscode/
+
+# React.js dependencies
+web/node_modules/
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+web/lerna-debug.log*
+
+# React build outputs
+web/build/
+web/dist/
+
+# React runtime data
+web/pids
+web/*.pid
+web/*.seed
+web/*.pid.lock
+
+# React coverage directory used by tools like istanbul
+web/coverage/
+web/.nyc_output
+
+# React ESLint cache
+web/.eslintcache
+
+# React Optional npm cache directory
+web/.npm
+
+# React Optional REPL history
+web/.node_repl_history
+
+# React Output of 'npm pack'
+web/*.tgz
+
+# React Yarn Integrity file
+web/.yarn-integrity
+
+# React dotenv environment variables file
+web/.env
+web/.env.local
+web/.env.development.local
+web/.env.test.local
+web/.env.production.local
+
+# React parcel-bundler cache (https://parceljs.org/)
+web/.cache
+web/.parcel-cache
+
+# React Next.js build output
+web/.next
+
+# React Nuxt.js build / generate output
+web/.nuxt
+web/dist
+
+# React Gatsby files
+web/.cache/
+web/public
+
+# React Storybook build outputs
+web/.out
+web/.storybook-out
+
+# React Temporary folders
+web/tmp/
+web/temp/

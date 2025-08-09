@@ -145,12 +145,6 @@ func (r *RedisRateLimiter) CheckLimit(ctx context.Context, identifier string, co
 
 // CheckBurstLimit 버스트 요청 체크 (더 짧은 시간 윈도우)
 func (r *RedisRateLimiter) CheckBurstLimit(ctx context.Context, identifier string, config LimitConfig) (*LimitResult, error) {
-	// 1초 윈도우로 버스트 체크
-	burstConfig := LimitConfig{
-		MaxRequests: config.BurstSize,
-		Window:      time.Second,
-	}
-	
 	key := r.getKey(identifier + ":burst")
 	
 	// 슬라이딩 윈도우 방식으로 버스트 체크
