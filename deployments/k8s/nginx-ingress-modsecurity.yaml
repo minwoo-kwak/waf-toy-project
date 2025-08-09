@@ -12,7 +12,6 @@ data:
     SecRequestBodyAccess On
     SecRequestBodyLimit 13107200
     SecRequestBodyNoFilesLimit 131072
-    SecRequestBodyInMemoryLimit 131072
     SecRequestBodyLimitAction Reject
     SecResponseBodyAccess On
     SecResponseBodyMimeType text/plain text/html text/xml
@@ -27,7 +26,7 @@ data:
     SecAuditLog /var/log/modsec_audit.log
     SecArgumentSeparator &
     SecCookieFormat 0
-    SecUnicodeMapFile unicode.mapping 20127
+    # SecUnicodeMapFile unicode.mapping 20127
     SecStatusEngine On
 
   # OWASP CRS 기본 설정
@@ -78,13 +77,13 @@ spec:
       containers:
       - name: controller
         # ModSecurity가 활성화된 NGINX Ingress Controller 이미지
-        image: registry.k8s.io/ingress-nginx/controller:v1.8.2
+        image: registry.k8s.io/ingress-nginx/controller:v1.10.1
         args:
           - /nginx-ingress-controller
-          - --configmap=$(POD_NAMESPACE)/nginx-ingress-config
-          - --enable-ssl-passthrough
-          - --enable-modsecurity=true  # ModSecurity 활성화
-          - --modsecurity-config-file=/etc/nginx/modsecurity/modsecurity.conf
+          - --configmap=$(POD_NAMESPACE)/nginx-ingress-modsecurity-config
+          - --validating-webhook=:8443
+          - --validating-webhook-certificate=/usr/local/certificates/cert
+          - --validating-webhook-key=/usr/local/certificates/key
         env:
           - name: POD_NAME
             valueFrom:
@@ -104,9 +103,6 @@ spec:
         volumeMounts:
         - name: modsecurity-config
           mountPath: /etc/nginx/modsecurity
-          readOnly: true
-        - name: webhook-cert
-          mountPath: /usr/local/certificates/
           readOnly: true
         # 리소스 제한 설정 (실무에서 중요)
         resources:
@@ -141,9 +137,6 @@ spec:
       - name: modsecurity-config
         configMap:
           name: nginx-ingress-modsecurity-config
-      - name: webhook-cert
-        secret:
-          secretName: webhook-cert
 
 ---
 # Service Account for NGINX Ingress
@@ -171,6 +164,7 @@ rules:
     verbs:
       - list
       - watch
+      - get
   - apiGroups:
       - ""
     resources:
@@ -186,8 +180,7 @@ rules:
       - list
       - watch
   - apiGroups:
-      - "extensions"
-      - "networking.k8s.io"
+      - networking.k8s.io
     resources:
       - ingresses
     verbs:
@@ -202,12 +195,39 @@ rules:
       - create
       - patch
   - apiGroups:
-      - "extensions"
-      - "networking.k8s.io"
+      - networking.k8s.io
     resources:
       - ingresses/status
     verbs:
       - update
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingressclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
 
 ---
 # ClusterRoleBinding for NGINX Ingress
