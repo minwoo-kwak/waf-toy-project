@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: waf-gateway
-        image: waf-gateway:v1754737514
+        image: waf-gateway:2.0
         imagePullPolicy: IfNotPresent  # 로컬 이미지 사용
         ports:
         - containerPort: 8080
