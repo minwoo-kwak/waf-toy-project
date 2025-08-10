@@ -1,0 +1,93 @@
+# Simple ModSecurity ConfigMap for Pure OWASP CRS
+# This enables only the basic OWASP Core Rule Set without custom rules
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-configuration
+  namespace: ingress-nginx
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/component: controller
+data:
+  # Enable ModSecurity with OWASP CRS only
+  enable-modsecurity: "true"
+  enable-owasp-modsecurity-crs: "true"
+#   
+#   # Custom Rules
+#   custom-rules.conf: |
+#     # Custom ModSecurity Rules for WAF Toy Project
+#     # Rule ID 범위: 10000-19999 (프로젝트 커스텀 룰)
+# 
+#     # ==== SQL Injection Protection ====
+#     SecRule ARGS "@detectSQLi" \
+#       "id:10001,\
+#       phase:2,\
+#       block,\
+#       msg:'SQL Injection Attack Detected via libinjection',\
+#       logdata:'Matched Data: %{MATCHED_VAR} found within %{MATCHED_VAR_NAME}',\
+#       tag:'application-multi',\
+#       tag:'language-multi',\
+#       tag:'platform-multi',\
+#       tag:'attack-sqli',\
+#       severity:'CRITICAL',\
+#       setvar:'tx.sql_injection_score=+5',\
+#       setvar:'tx.anomaly_score_pl2=+5'"
+# 
+#     # ==== XSS Protection ====
+#     SecRule ARGS "@detectXSS" \
+#       "id:10002,\
+#       phase:2,\
+#       block,\
+#       msg:'XSS Attack Detected via libinjection',\
+#       logdata:'Matched Data: %{MATCHED_VAR} found within %{MATCHED_VAR_NAME}',\
+#       tag:'application-multi',\
+#       tag:'language-multi',\
+#       tag:'platform-multi',\
+#       tag:'attack-xss',\
+#       severity:'CRITICAL',\
+#       setvar:'tx.xss_score=+5',\
+#       setvar:'tx.anomaly_score_pl2=+5'"
+# 
+#     # ==== Path Traversal Protection ====
+#     SecRule ARGS "@contains ../" \
+#       "id:10003,\
+#       phase:2,\
+#       block,\
+#       msg:'Path Traversal Attack Detected',\
+#       logdata:'Matched Data: %{MATCHED_VAR} found within %{MATCHED_VAR_NAME}',\
+#       tag:'application-multi',\
+#       tag:'language-multi',\
+#       tag:'platform-multi',\
+#       tag:'attack-lfi',\
+#       severity:'WARNING',\
+#       setvar:'tx.lfi_score=+3',\
+#       setvar:'tx.anomaly_score_pl2=+3'"
+# 
+#     # ==== Command Injection Protection ====
+#     SecRule ARGS "@rx (?i:(?:[\s'\"`´''<>]+|^)(?:n?cat|tail|more|less|head|curl|wget|nc|netcat|nmap|ping|whois|telnet|ssh)[\s<>])" \
+#       "id:10004,\
+#       phase:2,\
+#       block,\
+#       msg:'System Command Injection Attack Detected',\
+#       logdata:'Matched Data: %{MATCHED_VAR} found within %{MATCHED_VAR_NAME}',\
+#       tag:'application-multi',\
+#       tag:'language-multi',\
+#       tag:'platform-multi',\
+#       tag:'attack-rce',\
+#       severity:'CRITICAL',\
+#       setvar:'tx.rce_score=+5',\
+#       setvar:'tx.anomaly_score_pl2=+5'"
+# 
+#     # ==== Malicious User Agent Detection ====
+#     SecRule REQUEST_HEADERS:User-Agent "@rx (?i:(?:nikto|netsparker|sqlmap|sqlninja|openvas|w3af|wapiti|zmeu|nessus))" \
+#       "id:10005,\
+#       phase:1,\
+#       block,\
+#       msg:'Malicious User Agent Detected',\
+#       logdata:'Matched Data: %{MATCHED_VAR}',\
+#       tag:'application-multi',\
+#       tag:'platform-multi',\
+#       tag:'attack-reputation-scanner',\
+#       severity:'WARNING'"
