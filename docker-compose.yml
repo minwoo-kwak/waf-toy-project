@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  waf-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: waf-backend:v1.0.0
+    container_name: waf-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - GIN_MODE=release
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - waf-network
+
+  waf-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: waf-frontend:v1.0.0
+    container_name: waf-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      waf-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - waf-network
+
+networks:
+  waf-network:
+    driver: bridge

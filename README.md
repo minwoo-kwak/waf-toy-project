@@ -39,21 +39,41 @@ Docker Desktop의 Kubernetes를 활용하여 로컬 개발 환경에서 실제 �
 
 ## 개발 진행 상황
 
-### ✅ 1주차 (2024.8.4 - 2024.8.10): 개발환경 구성
-- [x] Git 저장소 초기 설정
+### ✅ 1주차 (2025.8.4 - 2025.8.10): 개발환경 구성 및 기본 WAF 구현 **[완료]**
+- [x] Git 저장소 초기 설정 및 브랜치 전략 수립
 - [x] Docker Desktop Kubernetes 환경 구성
 - [x] 프로젝트 구조 설계 및 폴더 생성
-- [x] 개발 환경 설정 파일 작성
-- [x] 기본 문서화 및 .gitignore 설정
+- [x] **Go 백엔드 API 서버 구축** (Gin 프레임워크, Docker 컨테이너화)
+- [x] **React 프론트엔드 애플리케이션 개발** (TypeScript, Docker 멀티스테이지 빌드)
+- [x] **ModSecurity + OWASP CRS 3.3.4 통합** (Kubernetes Ingress Controller)
+- [x] **Kubernetes 매니페스트 작성** (Deployment, Service, Ingress, ConfigMap)
+- [x] **자동 배포 스크립트** 구현 (`scripts/deploy-k8s.sh`)
+- [x] **WAF 보안 테스트** 완료 (SQL Injection, XSS 공격 차단 검증)
+- [x] 개발 환경 설정 파일 및 .gitignore 작성
+- [x] 상세한 프로젝트 문서화
 
-### 🔄 2주차 (2024.8.11 - 2024.8.17): 핵심 기능 구현
-- [ ] ModSecurity + Nginx Ingress Controller 연동
-- [ ] OWASP CRS 룰셋 적용 및 테스트
-- [ ] Go 백엔드 API 서버 구축
-- [ ] React 프론트엔드 대시보드 개발
+**🎯 1주차 주요 성과:**
+```bash
+# 정상 요청 테스트
+curl "http://localhost/api/v1/ping" -H "Host: waf-local.dev"
+# → {"message":"WAF API is running"} (200 OK)
+
+# SQL Injection 차단 테스트  
+curl "http://localhost/api/v1/ping?id=1%27%20OR%20%271%27=%271" -H "Host: waf-local.dev"
+# → 403 Forbidden (ModSecurity 차단)
+
+# XSS 공격 차단 테스트
+curl "http://localhost/api/v1/ping?search=%3Cscript%3Ealert('xss')%3C/script%3E" -H "Host: waf-local.dev"  
+# → 403 Forbidden (ModSecurity 차단)
+```
+
+### 🔄 2주차 (2025.8.11 - 2025.8.17): SaaS 기능 구현
 - [ ] Google OAuth 로그인 연동
-- [ ] WAF 로그 수집 및 시각화
-- [ ] Custom Rule CRUD 기능
+- [ ] WAF 로그 수집 및 시각화 대시보드
+- [ ] Custom Rule CRUD 기능 구현
+- [ ] 사용자별 보안 정책 관리
+- [ ] 실시간 보안 이벤트 모니터링
+- [ ] 멀티 테넌트 아키텍처 기반 구축
 
 ### 🎯 향후 계획
 - **3주차**: 커스텀 룰 최적화 및 성능 튜닝
@@ -79,16 +99,33 @@ cd waf-toy-project
 # Kubernetes 클러스터 상태 확인
 kubectl cluster-info
 
-# 백엔드 실행
-cd backend
-go mod init waf-backend
-go mod tidy
-go run main.go
+# Docker 이미지 빌드
+docker build -t waf-backend:v1.0.1 ./backend
+docker build -t waf-frontend:v1.0.1 ./frontend
 
-# 프론트엔드 실행 (새 터미널)
-cd frontend
+# 전체 WAF 시스템 배포
+./scripts/deploy-k8s.sh
+
+# WAF 기능 테스트
+curl "http://localhost/api/v1/ping" -H "Host: waf-local.dev"
+curl "http://localhost/api/v1/ping?id=1%27%20OR%20%271%27=%271" -H "Host: waf-local.dev"  # SQL Injection 테스트
+```
+
+### 개별 컴포넌트 개발 환경
+
+```bash
+# 백엔드 개발 환경 (Go)
+cd backend
+go mod tidy
+go run main.go  # http://localhost:8080
+
+# 프론트엔드 개발 환경 (React)
+cd frontend  
 npm install
-npm start
+npm start      # http://localhost:3000
+
+# ModSecurity 로그 모니터링
+kubectl logs -n ingress-nginx deployment/ingress-nginx-controller -f
 ```
 
 ## 프로젝트 구조
