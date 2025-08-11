@@ -11,6 +11,7 @@ import {
 } from '@mui/icons-material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './components/auth/LoginPage';
+import AuthCallback from './components/auth/AuthCallback';
 import Dashboard from './components/dashboard/Dashboard';
 import SecurityTests from './components/security/SecurityTests';
 import RulesManagement from './components/rules/RulesManagement';
@@ -126,6 +127,7 @@ const AppContent: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route
         path="/dashboard"
         element={

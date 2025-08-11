@@ -24,4 +24,5 @@ export interface AuthContextType {
   login: (code: string, state: string) => Promise<void>;
   logout: () => void;
   getAuthUrl: () => Promise<string>;
+  setAuth: (user: User, token: string) => void;
 }

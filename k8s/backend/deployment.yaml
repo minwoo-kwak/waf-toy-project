@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: waf-backend
-        image: waf-backend:v1.0.0
+        image: waf-backend:v2.0.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -24,6 +24,18 @@ spec:
         env:
         - name: GIN_MODE
           value: "release"
+        - name: PORT
+          value: "8080"
+        - name: CORS_ORIGIN
+          value: "*"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: waf-secrets
+              key: jwt-secret
+              optional: true
         livenessProbe:
           httpGet:
             path: /health

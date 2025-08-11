@@ -140,6 +140,8 @@ temp/
 
 # Kubernetes
 *.kubeconfig
+k8s/secret.yaml
+k8s/waf-secret.yaml
 
 # Security and sensitive files
 *.key

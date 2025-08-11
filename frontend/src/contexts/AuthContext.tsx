@@ -140,11 +140,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return response.auth_url;
   };
 
+  const setAuth = (user: User, token: string): void => {
+    dispatch({
+      type: 'LOGIN_SUCCESS',
+      payload: { user, token },
+    });
+    webSocketService.connect(token);
+  };
+
   const value: AuthContextType = {
     authState,
     login,
     logout,
     getAuthUrl,
+    setAuth,
   };
 
   return (
