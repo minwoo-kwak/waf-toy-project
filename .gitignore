@@ -143,6 +143,10 @@ temp/
 k8s/secret.yaml
 k8s/waf-secret.yaml
 
+# Environment files
+frontend/.env.local
+config/current.yaml
+
 # Security and sensitive files
 *.key
 *.pem

@@ -3,7 +3,7 @@ import { LoginResponse, User } from '../types/auth';
 import { WAFLog, WAFStats, CustomRule, CustomRuleRequest, SecurityTest, SecurityTestRequest } from '../types/waf';
 import { ErrorResponse } from '../types/errors';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

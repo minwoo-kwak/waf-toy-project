@@ -36,6 +36,8 @@ spec:
               name: waf-secrets
               key: jwt-secret
               optional: true
+        - name: INGRESS_URL
+          value: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local"  # Ingress Service
         livenessProbe:
           httpGet:
             path: /health

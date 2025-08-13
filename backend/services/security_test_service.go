@@ -6,10 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 	"waf-backend/dto"
-	"waf-backend/utils"
 
 	"github.com/sirupsen/logrus"
 )
@@ -21,9 +21,19 @@ type SecurityTestService struct {
 }
 
 func NewSecurityTestService(log *logrus.Logger) *SecurityTestService {
+	// 환경변수에서 타겟 URL 가져오기
+	// TARGET_URL 환경변수 사용 (ping 엔드포인트 추가)
+	baseURL := os.Getenv("TARGET_URL")
+	if baseURL == "" {
+		baseURL = "http://host.docker.internal:3000" // 기본값
+	}
+	targetURL := baseURL + "/api/v1/ping"
+	
+	log.WithField("target_url", targetURL).Info("Security test service initialized")
+	
 	return &SecurityTestService{
 		log:       log,
-		targetURL: utils.GetEnv("TARGET_URL", "http://waf-local.dev"),
+		targetURL: targetURL,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -101,10 +111,17 @@ func (s *SecurityTestService) testPayload(payload, testType string) dto.Security
 		return result
 	}
 
-	// WAF 테스트를 위한 헤더 추가
-	req.Header.Set("Host", "waf-local.dev")
+	// WAF 테스트를 위한 추가 헤더 (Host는 각 함수에서 이미 설정됨)
 	req.Header.Set("User-Agent", "WAF-Security-Test/1.0")
+	req.Header.Set("X-Forwarded-For", "192.168.1.100") // 외부 IP로 위장
 
+	// 실제 요청 URL 로깅
+	s.log.WithFields(logrus.Fields{
+		"url": req.URL.String(),
+		"method": req.Method,
+		"host_header": req.Header.Get("Host"),
+	}).Info("Sending security test request")
+	
 	resp, err := s.client.Do(req)
 	if err != nil {
 		result.Response = fmt.Sprintf("Error making request: %v", err)
@@ -132,20 +149,38 @@ func (s *SecurityTestService) testPayload(payload, testType string) dto.Security
 
 func (s *SecurityTestService) createSQLInjectionRequest(payload string) (*http.Request, error) {
 	// GET 요청으로 SQL Injection 페이로드 테스트
-	testURL := fmt.Sprintf("%s/api/v1/ping?id=%s", s.targetURL, url.QueryEscape(payload))
-	return http.NewRequest("GET", testURL, nil)
+	testURL := fmt.Sprintf("%s?id=%s", s.targetURL, url.QueryEscape(payload))
+	req, err := http.NewRequest("GET", testURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Host 헤더를 localhost로 설정 (Ingress 라우팅용)
+	req.Header.Set("Host", "localhost")
+	return req, nil
 }
 
 func (s *SecurityTestService) createXSSRequest(payload string) (*http.Request, error) {
 	// GET 요청으로 XSS 페이로드 테스트
-	testURL := fmt.Sprintf("%s/api/v1/ping?search=%s", s.targetURL, url.QueryEscape(payload))
-	return http.NewRequest("GET", testURL, nil)
+	testURL := fmt.Sprintf("%s?search=%s", s.targetURL, url.QueryEscape(payload))
+	req, err := http.NewRequest("GET", testURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Host 헤더를 localhost로 설정 (Ingress 라우팅용)
+	req.Header.Set("Host", "localhost")
+	return req, nil
 }
 
 func (s *SecurityTestService) createPathTraversalRequest(payload string) (*http.Request, error) {
 	// GET 요청으로 Path Traversal 페이로드 테스트
-	testURL := fmt.Sprintf("%s/api/v1/ping?file=%s", s.targetURL, url.QueryEscape(payload))
-	return http.NewRequest("GET", testURL, nil)
+	testURL := fmt.Sprintf("%s?file=%s", s.targetURL, url.QueryEscape(payload))
+	req, err := http.NewRequest("GET", testURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Host 헤더를 localhost로 설정 (Ingress 라우팅용)
+	req.Header.Set("Host", "localhost")
+	return req, nil
 }
 
 func (s *SecurityTestService) createCommandInjectionRequest(payload string) (*http.Request, error) {
@@ -153,20 +188,28 @@ func (s *SecurityTestService) createCommandInjectionRequest(payload string) (*ht
 	data := url.Values{}
 	data.Set("cmd", payload)
 	
-	req, err := http.NewRequest("POST", s.targetURL+"/api/v1/ping", 
+	req, err := http.NewRequest("POST", s.targetURL, 
 		bytes.NewBufferString(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
 	
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Host 헤더를 localhost로 설정 (Ingress 라우팅용)
+	req.Header.Set("Host", "localhost")
 	return req, nil
 }
 
 func (s *SecurityTestService) createGenericRequest(payload string) (*http.Request, error) {
 	// 기본 GET 요청
-	testURL := fmt.Sprintf("%s/api/v1/ping?test=%s", s.targetURL, url.QueryEscape(payload))
-	return http.NewRequest("GET", testURL, nil)
+	testURL := fmt.Sprintf("%s?test=%s", s.targetURL, url.QueryEscape(payload))
+	req, err := http.NewRequest("GET", testURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Host 헤더를 localhost로 설정 (Ingress 라우팅용)
+	req.Header.Set("Host", "localhost")
+	return req, nil
 }
 
 func (s *SecurityTestService) getDefaultPayloads(testType string) []string {

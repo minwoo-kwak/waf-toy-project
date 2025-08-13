@@ -15,7 +15,7 @@ data:
   LOG_LEVEL: "info"
   
   # WAF Configuration
-  TARGET_URL: "http://localhost"
+  TARGET_URL: "http://host.docker.internal:3000"
   MODSECURITY_CONFIGMAP: "modsecurity-config"
   KUBERNETES_NAMESPACE: "default"
 ---
@@ -31,3 +31,4 @@ data:
   REACT_APP_GOOGLE_AUTH_URL: "http://localhost:8080/api/v1/public/auth/url"
   REACT_APP_ENABLE_WEBSOCKET: "true"
   REACT_APP_ENABLE_SECURITY_TESTING: "true"
+  REACT_APP_TEST_TARGET_URL: "http://localhost"

@@ -55,35 +55,54 @@ Docker Desktop의 Kubernetes를 활용하여 로컬 개발 환경에서 실제 �
 **🎯 1주차 주요 성과:**
 ```bash
 # 정상 요청 테스트
-curl "http://localhost/api/v1/ping" -H "Host: waf-local.dev"
+curl "http://localhost:3000/api/v1/ping"
 # → {"message":"WAF API is running"} (200 OK)
 
 # SQL Injection 차단 테스트  
-curl "http://localhost/api/v1/ping?id=1%27%20OR%20%271%27=%271" -H "Host: waf-local.dev"
+curl "http://localhost:3000/api/v1/ping?id=1%27%20OR%20%271%27=%271"
 # → 403 Forbidden (ModSecurity 차단)
 
 # XSS 공격 차단 테스트
-curl "http://localhost/api/v1/ping?search=%3Cscript%3Ealert('xss')%3C/script%3E" -H "Host: waf-local.dev"  
+curl "http://localhost:3000/api/v1/ping?search=%3Cscript%3Ealert('xss')%3C/script%3E"  
 # → 403 Forbidden (ModSecurity 차단)
 ```
 
-### 🔄 2주차 (2025.8.11 - 2025.8.17): SaaS 기능 구현 **[마감: 8월 17일]**
-**📌 회의: 일요일 오후 8시**
+### ✅ 2주차 (2025.8.11 - 2025.8.17): SaaS 기능 구현 **[완료]**
 
-**주요 과제:**
-- [ ] **SaaS 형태 Google 소셜 로그인 연동**
-- [ ] **WAF Log 대시보드 개발** (실시간 로그 모니터링)
-- [ ] **Custom Rule CRUD 웹 대시보드** (추가, 수정, 삭제)
-- [ ] **DTO 형태로 FE/BE 브랜치 분리 개발**
-- [ ] **Kali Linux 또는 웹 취약점 분석 오픈소스** 활용 분석 리포트 작성
-- [ ] **시연 영상 촬영** 및 GitHub 브랜치 관리
-- [ ] **ModSecurity + OWASP CRS 룰 동작 확인** 및 로그 수집
+**주요 과제 달성:**
+- [x] **Google OAuth2 소셜 로그인 연동** (백엔드 JWT + 프론트엔드 통합)
+- [x] **Material-UI 기반 실시간 WAF 대시보드** 구현
+- [x] **Custom Rule CRUD 웹 인터페이스** (생성, 수정, 삭제, 조회)
+- [x] **ModSecurity 로그 스트리밍** 및 실시간 분석 시스템
+- [x] **보안 테스트 도구** 통합 (SQL Injection, XSS, Path Traversal)
+- [x] **Kubernetes ConfigMap/Secret** 환경변수 관리
+- [x] **Docker 이미지 v2.0.x** 시리즈 배포
+- [x] **OAuth 콜백 라우팅** 문제 해결 (nginx 프록시 설정)
+
+**🎯 2주차 주요 성과:**
+```bash
+# WAF SaaS 대시보드 접속
+# 1. 포트포워딩으로 로컬 접속
+kubectl port-forward service/ingress-nginx-controller -n ingress-nginx 3000:80
+
+# 2. 브라우저에서 접속
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:3000/api
+
+# 3. Google OAuth 로그인 후 대시보드 이용 가능
+# - 실시간 WAF 로그 모니터링
+# - Custom Rule 생성/관리
+# - 보안 테스트 도구 실행
+```
 
 **📌 2주차 산출물:**
-- docker-compose.yml 완성
-- 기본 룰 로그 샘플
-- 보안 분석 리포트
-- 시연 영상
+- Google OAuth2 통합 인증 시스템
+- Material-UI 실시간 대시보드
+- Custom Rule CRUD 시스템
+- ModSecurity 로그 분석 엔진
+- 보안 테스트 자동화 도구
+- Kubernetes 배포 환경 완성
+- 트러블슈팅 문서 (TROUBLESHOOTING.md)
 
 ### 🎯 3주차 (2025.8.18 - 2025.8.24): 성능 최적화 및 고급 기능
 - [ ] 커스텀 룰 최적화 및 성능 튜닝
@@ -144,8 +163,8 @@ docker build -t waf-frontend:v1.0.1 ./frontend
 ./scripts/deploy-k8s.sh
 
 # WAF 기능 테스트
-curl "http://localhost/api/v1/ping" -H "Host: waf-local.dev"
-curl "http://localhost/api/v1/ping?id=1%27%20OR%20%271%27=%271" -H "Host: waf-local.dev"  # SQL Injection 테스트
+curl "http://localhost:3000/api/v1/ping"
+curl "http://localhost:3000/api/v1/ping?id=1%27%20OR%20%271%27=%271"  # SQL Injection 테스트
 ```
 
 ### 개별 컴포넌트 개발 환경
