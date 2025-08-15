@@ -19,6 +19,14 @@ metadata:
       SecAuditLogParts ABIJDEFHZ
       SecAuditLogType Serial
       SecAuditLog /var/log/nginx/modsec_audit.log
+      
+      # Allow OAuth callback - disable some rules for auth paths
+      SecRule REQUEST_URI "^/auth/callback" \
+        "id:1000,\
+        phase:1,\
+        pass,\
+        nolog,\
+        ctl:ruleEngine=Off"
     
     # Rate limiting
     nginx.ingress.kubernetes.io/rate-limit: "100"
@@ -34,9 +42,19 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
     
+    # WebSocket support
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/connection-proxy-header: "upgrade"
+    nginx.ingress.kubernetes.io/upgrade-proxy-header: "websocket"
+    nginx.ingress.kubernetes.io/proxy-set-headers: |
+      Connection $connection_upgrade
+      Upgrade $http_upgrade
+      X-Forwarded-For $proxy_add_x_forwarded_for
+      X-Forwarded-Proto $scheme
+    
 spec:
   rules:
-  - host: waf-local.dev
+  - host: localhost
     http:
       paths:
       - path: /api
@@ -46,6 +64,13 @@ spec:
             name: waf-backend-service
             port:
               number: 8080
+      - path: /auth
+        pathType: Prefix
+        backend:
+          service:
+            name: waf-frontend-service
+            port:
+              number: 80
       - path: /
         pathType: Prefix
         backend:

@@ -106,3 +106,43 @@ func (h *WAFHandler) HandleWebSocket(c *gin.Context) {
 	
 	h.websocketService.HandleWebSocket(c)
 }
+
+func (h *WAFHandler) GenerateTestLogs(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	h.log.WithField("user_id", userID).Info("Test log generation requested")
+	
+	// Generate some sample WAF logs for testing
+	mockLogs := []struct {
+		ClientIP   string
+		Method     string
+		URI        string
+		UserAgent  string
+		AttackType string
+		Blocked    bool
+	}{
+		{"192.168.1.100", "GET", "/", "Mozilla/5.0", "", false},
+		{"10.0.0.50", "POST", "/login", "curl/7.68.0", "", false},
+		{"203.0.113.5", "GET", "/admin", "BadBot/1.0", "Directory Traversal", true},
+		{"198.51.100.10", "POST", "/search", "Mozilla/5.0", "SQL Injection", true},
+		{"192.0.2.1", "GET", "/profile", "Chrome/91.0", "", false},
+		{"203.0.113.15", "GET", "/api/users", "AttackScript", "XSS", true},
+		{"10.0.0.25", "GET", "/dashboard", "Firefox/89.0", "", false},
+		{"198.51.100.20", "POST", "/upload", "Exploit/2.0", "File Upload Attack", true},
+	}
+	
+	for _, mockLog := range mockLogs {
+		h.wafService.AddMockLog(
+			mockLog.ClientIP,
+			mockLog.Method,
+			mockLog.URI,
+			mockLog.UserAgent,
+			mockLog.AttackType,
+			mockLog.Blocked,
+		)
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Test logs generated successfully",
+		"count":   len(mockLogs),
+	})
+}

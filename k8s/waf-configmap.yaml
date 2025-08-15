@@ -6,10 +6,10 @@ metadata:
 data:
   # Server Configuration
   PORT: "8080"
-  CORS_ORIGIN: "http://localhost:3000"
+  CORS_ORIGIN: "http://localhost:3000,http://localhost"
   
   # OAuth Configuration
-  GOOGLE_REDIRECT_URL: "http://localhost:3000/auth/callback"
+  GOOGLE_REDIRECT_URL: "http://localhost:80/auth/callback"
   
   # Logging Configuration
   LOG_LEVEL: "info"
@@ -26,9 +26,9 @@ metadata:
   namespace: default
 data:
   # Frontend Configuration
-  REACT_APP_API_BASE_URL: "http://localhost:8080"
-  REACT_APP_WS_URL: "ws://localhost:8080/ws"
-  REACT_APP_GOOGLE_AUTH_URL: "http://localhost:8080/api/v1/public/auth/url"
+  REACT_APP_API_BASE_URL: "http://localhost/api"
+  REACT_APP_WS_URL: "ws://localhost/api/v1/ws"
+  REACT_APP_GOOGLE_AUTH_URL: "http://localhost/api/v1/public/auth/url"
   REACT_APP_ENABLE_WEBSOCKET: "true"
   REACT_APP_ENABLE_SECURITY_TESTING: "true"
   REACT_APP_TEST_TARGET_URL: "http://localhost"

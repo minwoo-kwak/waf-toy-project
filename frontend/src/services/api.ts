@@ -2,17 +2,18 @@ import axios from 'axios';
 import { LoginResponse, User } from '../types/auth';
 import { WAFLog, WAFStats, CustomRule, CustomRuleRequest, SecurityTest, SecurityTestRequest } from '../types/waf';
 import { ErrorResponse } from '../types/errors';
+import { API_ENDPOINTS, LOCAL_STORAGE_KEYS, DEFAULT_VALUES } from '../constants';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: DEFAULT_VALUES.API_TIMEOUT,
 });
 
 // Request interceptor to add auth token
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('waf_token');
+  const token = localStorage.getItem(LOCAL_STORAGE_KEYS.TOKEN);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -24,8 +25,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('waf_token');
-      localStorage.removeItem('waf_user');
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.TOKEN);
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.USER);
       window.location.href = '/login';
     }
     
@@ -42,14 +43,14 @@ api.interceptors.response.use(
 // Auth API
 export const authAPI = {
   getAuthUrl: async (state?: string): Promise<{ auth_url: string; state: string }> => {
-    const response = await api.get('/api/v1/public/auth/url', {
+    const response = await api.get(API_ENDPOINTS.AUTH_URL, {
       params: { state },
     });
     return response.data;
   },
 
   handleCallback: async (code: string, state: string): Promise<LoginResponse> => {
-    const response = await api.post('/api/v1/public/auth/callback', {
+    const response = await api.post(API_ENDPOINTS.AUTH_CALLBACK, {
       code,
       state,
     });
@@ -57,26 +58,26 @@ export const authAPI = {
   },
 
   getProfile: async (): Promise<{ user: User }> => {
-    const response = await api.get('/api/v1/auth/profile');
+    const response = await api.get(API_ENDPOINTS.AUTH_PROFILE);
     return response.data;
   },
 
   logout: async (): Promise<void> => {
-    await api.post('/api/v1/auth/logout');
+    await api.post(API_ENDPOINTS.AUTH_LOGOUT);
   },
 };
 
 // WAF API
 export const wafAPI = {
   getLogs: async (limit?: number): Promise<{ logs: WAFLog[]; count: number }> => {
-    const response = await api.get('/api/v1/waf/logs', {
+    const response = await api.get(API_ENDPOINTS.WAF_LOGS, {
       params: { limit },
     });
     return response.data;
   },
 
   getStats: async (): Promise<{ stats: WAFStats; websocket_clients: number }> => {
-    const response = await api.get('/api/v1/waf/stats');
+    const response = await api.get(API_ENDPOINTS.WAF_STATS);
     return response.data;
   },
 
@@ -86,7 +87,7 @@ export const wafAPI = {
     recent_logs: WAFLog[];
     system_info: any;
   }> => {
-    const response = await api.get('/api/v1/waf/dashboard');
+    const response = await api.get(API_ENDPOINTS.WAF_DASHBOARD);
     return response.data;
   },
 };
@@ -94,27 +95,27 @@ export const wafAPI = {
 // Rules API
 export const rulesAPI = {
   createRule: async (rule: CustomRuleRequest): Promise<{ rule: CustomRule }> => {
-    const response = await api.post('/api/v1/rules', rule);
+    const response = await api.post(API_ENDPOINTS.RULES, rule);
     return response.data;
   },
 
   getRules: async (): Promise<{ rules: CustomRule[]; count: number }> => {
-    const response = await api.get('/api/v1/rules');
+    const response = await api.get(API_ENDPOINTS.RULES);
     return response.data;
   },
 
   getRule: async (id: string): Promise<{ rule: CustomRule }> => {
-    const response = await api.get(`/api/v1/rules/${id}`);
+    const response = await api.get(`${API_ENDPOINTS.RULES}/${id}`);
     return response.data;
   },
 
   updateRule: async (id: string, rule: CustomRuleRequest): Promise<{ rule: CustomRule }> => {
-    const response = await api.put(`/api/v1/rules/${id}`, rule);
+    const response = await api.put(`${API_ENDPOINTS.RULES}/${id}`, rule);
     return response.data;
   },
 
   deleteRule: async (id: string): Promise<void> => {
-    await api.delete(`/api/v1/rules/${id}`);
+    await api.delete(`${API_ENDPOINTS.RULES}/${id}`);
   },
 };
 
@@ -130,7 +131,7 @@ export const securityAPI = {
       effectiveness: string;
     };
   }> => {
-    const response = await api.post('/api/v1/security/test', request);
+    const response = await api.post(API_ENDPOINTS.SECURITY_TEST, request);
     return response.data;
   },
 
@@ -143,7 +144,7 @@ export const securityAPI = {
     }>;
     count: number;
   }> => {
-    const response = await api.get('/api/v1/security/test-types');
+    const response = await api.get(API_ENDPOINTS.SECURITY_TEST_TYPES);
     return response.data;
   },
 
@@ -157,7 +158,7 @@ export const securityAPI = {
     }>;
     summary: any;
   }> => {
-    const response = await api.get('/api/v1/security/quick-test');
+    const response = await api.get(API_ENDPOINTS.SECURITY_QUICK_TEST);
     return response.data;
   },
 };

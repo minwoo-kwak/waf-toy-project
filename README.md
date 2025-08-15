@@ -73,11 +73,13 @@ curl "http://localhost:3000/api/v1/ping?search=%3Cscript%3Ealert('xss')%3C/scrip
 - [x] **Google OAuth2 소셜 로그인 연동** (백엔드 JWT + 프론트엔드 통합)
 - [x] **Material-UI 기반 실시간 WAF 대시보드** 구현
 - [x] **Custom Rule CRUD 웹 인터페이스** (생성, 수정, 삭제, 조회)
-- [x] **ModSecurity 로그 스트리밍** 및 실시간 분석 시스템
-- [x] **보안 테스트 도구** 통합 (SQL Injection, XSS, Path Traversal)
+- [x] **실시간 WebSocket 로그 스트리밍** 및 분석 시스템
+- [x] **보안 테스트 도구** 통합 (SQL Injection, XSS, Path Traversal, Command Injection)
+- [x] **멀티 테넌트 아키텍처** (사용자별 데이터 격리)
 - [x] **Kubernetes ConfigMap/Secret** 환경변수 관리
-- [x] **Docker 이미지 v2.0.x** 시리즈 배포
-- [x] **OAuth 콜백 라우팅** 문제 해결 (nginx 프록시 설정)
+- [x] **Docker 이미지 v2.0.8** 시리즈 배포
+- [x] **OAuth 콜백 403 오류** 해결 (ModSecurity 예외 규칙)
+- [x] **코드 리팩토링** (상수 중앙화, 유지보수성 향상)
 
 **🎯 2주차 주요 성과:**
 ```bash
@@ -97,12 +99,13 @@ kubectl port-forward service/ingress-nginx-controller -n ingress-nginx 3000:80
 
 **📌 2주차 산출물:**
 - Google OAuth2 통합 인증 시스템
-- Material-UI 실시간 대시보드
-- Custom Rule CRUD 시스템
-- ModSecurity 로그 분석 엔진
-- 보안 테스트 자동화 도구
-- Kubernetes 배포 환경 완성
-- 트러블슈팅 문서 (TROUBLESHOOTING.md)
+- Material-UI 실시간 대시보드 
+- Custom Rule CRUD 시스템 (멀티 테넌트)
+- WebSocket 기반 실시간 로그 모니터링
+- 브라우저 기반 보안 테스트 도구
+- Kubernetes 완전 배포 환경
+- Kali Linux 보안 분석 가이드 (SECURITY_ANALYSIS_GUIDE.md)
+- 코드 품질 개선 (상수 중앙화, 타입 안정성)
 
 ### 🎯 3주차 (2025.8.18 - 2025.8.24): 성능 최적화 및 고급 기능
 - [ ] 커스텀 룰 최적화 및 성능 튜닝
@@ -222,10 +225,26 @@ waf-toy-project/
 
 본 프로젝트에서는 다양한 보안 테스트 도구를 활용하여 WAF의 효과성을 검증합니다:
 
+### 🌐 브라우저 기반 테스트 (내장)
+- **실시간 공격 시뮬레이션**: SQL Injection, XSS, Path Traversal, Command Injection
+- **WAF 차단 효과 검증**: 403 Forbidden vs 200 OK 응답 비교
+- **팝업 차단 방지**: 사용자 친화적인 테스트 인터페이스
+
+### 🛡️ Kali Linux 전문 분석
+상세한 보안 분석을 위해 `SECURITY_ANALYSIS_GUIDE.md` 문서를 제공합니다:
+
 - **OWASP ZAP**: 자동화된 웹 애플리케이션 보안 스캔
 - **Burp Suite**: 수동 보안 테스트 및 트래픽 분석  
 - **Nikto**: 웹서버 취약점 스캔
 - **SQLMap**: SQL 인젝션 공격 시뮬레이션
+- **ModSecurity 우회 테스트**: 인코딩 기반 공격 패턴
+- **API 보안 검증**: 인증/인가 취약점 테스트
+
+```bash
+# Kali Linux 종합 보안 스캔 실행
+chmod +x waf_security_scan.sh
+./waf_security_scan.sh
+```
 
 ## 참고 자료
 

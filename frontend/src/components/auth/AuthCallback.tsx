@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Box, CircularProgress, Typography, Alert } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
+import { LOCAL_STORAGE_KEYS } from '../../constants';
 
 const AuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -44,8 +45,8 @@ const AuthCallback: React.FC = () => {
         
         if (data.token && data.user) {
           // Store token and user info with the correct keys
-          localStorage.setItem('waf_token', data.token);
-          localStorage.setItem('waf_user', JSON.stringify(data.user));
+          localStorage.setItem(LOCAL_STORAGE_KEYS.TOKEN, data.token);
+          localStorage.setItem(LOCAL_STORAGE_KEYS.USER, JSON.stringify(data.user));
           
           // Update auth context directly
           setAuth(data.user, data.token);

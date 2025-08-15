@@ -88,6 +88,15 @@ const BrowserSecurityTest: React.FC = () => {
   ];
 
   const handleRunAllTests = async () => {
+    // 팝업 차단 경고 표시
+    const userConfirmed = window.confirm(
+      '🚨 팝업 차단 해제 필요\n\n이 테스트는 여러 탭을 열어 보안 테스트를 수행합니다.\n브라우저에서 팝업 차단을 해제해주세요.\n\n계속하시겠습니까?'
+    );
+    
+    if (!userConfirmed) {
+      return;
+    }
+    
     setTestRunning(true);
     setOpenedTabs(0);
     
@@ -99,27 +108,39 @@ const BrowserSecurityTest: React.FC = () => {
         totalUrls += vector.urls.length;
       });
       
-      // 각 공격 벡터별로 새 탭에서 URL 열기
-      for (const vector of attackVectors) {
-        for (const url of vector.urls) {
+      // 첫 번째 URL만 즉시 열고, 나머지는 사용자가 수동으로 열도록 안내
+      let urlsToOpen: string[] = [];
+      
+      attackVectors.forEach(vector => {
+        vector.urls.forEach(url => {
           const testTargetUrl = process.env.REACT_APP_TEST_TARGET_URL || 'http://localhost';
-        const fullUrl = testTargetUrl + url;
-          
-          // 새 탭에서 URL 열기
-          const newTab = window.open(fullUrl, '_blank', 'noopener,noreferrer');
-          
-          if (newTab) {
-            setOpenedTabs(prev => prev + 1);
-          }
-          
-          // 너무 빠르게 열지 않도록 지연
-          await new Promise(resolve => setTimeout(resolve, 500));
+          const fullUrl = testTargetUrl + url;
+          urlsToOpen.push(fullUrl);
+        });
+      });
+      
+      // 첫 번째 URL을 열어서 팝업 차단 여부 확인
+      const firstTab = window.open(urlsToOpen[0], '_blank', 'noopener,noreferrer');
+      
+      if (!firstTab) {
+        alert('❌ 팝업이 차단되었습니다!\n\n브라우저 주소창 옆의 팝업 차단 아이콘을 클릭하여 팝업을 허용해주세요.\n그 후 다시 테스트를 실행하세요.');
+        return;
+      }
+      
+      setOpenedTabs(1);
+      
+      // 나머지 URL들을 순차적으로 열기 (각각 사용자 액션으로 처리)
+      for (let i = 1; i < Math.min(urlsToOpen.length, 8); i++) { // 최대 8개만
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const newTab = window.open(urlsToOpen[i], '_blank', 'noopener,noreferrer');
+        if (newTab) {
+          setOpenedTabs(prev => prev + 1);
         }
       }
       
       // 결과 확인 안내
       setTimeout(() => {
-        alert(`🚀 ${totalUrls}개의 공격 테스트가 새 탭에서 실행되었습니다!\\n\\n📋 결과 확인 방법:\\n• 403 Forbidden = ModSecurity 차단 성공 ✅\\n• 200 OK = 차단 실패 ❌\\n\\n각 탭을 확인하여 ModSecurity 차단 여부를 확인하세요.`);
+        alert(`🚀 ${Math.min(urlsToOpen.length, 8)}개의 공격 테스트가 새 탭에서 실행되었습니다!\\n\\n📋 결과 확인 방법:\\n• 403 Forbidden = ModSecurity 차단 성공 ✅\\n• 200 OK = 차단 실패 ❌\\n\\n각 탭을 확인하여 ModSecurity 차단 여부를 확인하세요.`);
       }, 2000);
       
     } catch (error) {

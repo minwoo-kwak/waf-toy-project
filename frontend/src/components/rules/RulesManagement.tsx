@@ -173,7 +173,7 @@ const RulesManagement: React.FC = () => {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Active Rules ({rules.length})
+            Active Rules ({rules?.length || 0})
           </Typography>
 
           <TableContainer component={Paper} variant="outlined">
@@ -189,7 +189,7 @@ const RulesManagement: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {rules.length === 0 ? (
+                {!rules || rules.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} align="center">
                       <Typography variant="body2" color="textSecondary">

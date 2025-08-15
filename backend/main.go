@@ -104,6 +104,7 @@ func main() {
 			waf.GET("/logs", wafHandler.GetLogs)
 			waf.GET("/stats", wafHandler.GetStats)
 			waf.GET("/dashboard", wafHandler.GetDashboard)
+			waf.POST("/test-logs", wafHandler.GenerateTestLogs) // For testing purposes
 		}
 		
 		// Custom rules management
@@ -125,8 +126,38 @@ func main() {
 		}
 	}
 
-	// WebSocket endpoint (authentication required)
-	r.GET("/ws", authHandler.AuthMiddleware(), wafHandler.HandleWebSocket)
+	// WebSocket endpoint with custom authentication
+	r.GET("/api/v1/ws", func(c *gin.Context) {
+		// WebSocket 전용 토큰 인증 (쿼리 파라미터에서)
+		token := c.Query("token")
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Token required",
+				"code":  "ERR_NO_TOKEN",
+			})
+			return
+		}
+
+		// JWT 토큰 검증
+		userData, err := authService.ValidateJWT(token)
+		if err != nil {
+			log.WithError(err).Error("WebSocket JWT validation failed")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid or expired token",
+				"code":  "ERR_INVALID_TOKEN",
+				"details": err.Error(),
+			})
+			return
+		}
+
+		// 사용자 정보를 컨텍스트에 설정
+		c.Set("user_id", userData.UserID)
+		c.Set("email", userData.Email)
+		c.Set("name", userData.Name)
+
+		// WebSocket 핸들러 호출
+		wafHandler.HandleWebSocket(c)
+	})
 
 	// Legacy ping endpoint for backward compatibility
 	r.GET("/api/v1/ping", func(c *gin.Context) {

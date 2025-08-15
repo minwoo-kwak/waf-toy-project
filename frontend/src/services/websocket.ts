@@ -1,4 +1,5 @@
 import { WAFLog, WAFStats } from '../types/waf';
+import { WEBSOCKET_MESSAGE_TYPES, DEFAULT_VALUES } from '../constants';
 
 interface WebSocketMessage {
   type: string;
@@ -9,8 +10,8 @@ interface WebSocketMessage {
 class WebSocketService {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private maxReconnectAttempts = DEFAULT_VALUES.MAX_RECONNECT_ATTEMPTS;
+  private reconnectDelay = DEFAULT_VALUES.RECONNECT_DELAY;
   private token: string | null = null;
   private callbacks: { [key: string]: Function[] } = {};
 
@@ -20,7 +21,7 @@ class WebSocketService {
     }
 
     this.token = token;
-    const WS_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:3000/api/v1/ws';
+    const WS_URL = process.env.REACT_APP_WS_URL || 'ws://localhost/api/v1/ws';
     
     try {
       this.ws = new WebSocket(`${WS_URL}?token=${token}`);
@@ -62,19 +63,19 @@ class WebSocketService {
 
   private handleMessage(message: WebSocketMessage): void {
     switch (message.type) {
-      case 'welcome':
+      case WEBSOCKET_MESSAGE_TYPES.WELCOME:
         this.emit('welcome', message.data);
         break;
-      case 'new_log':
+      case WEBSOCKET_MESSAGE_TYPES.NEW_LOG:
         this.emit('new_log', message.data);
         break;
-      case 'stats_update':
+      case WEBSOCKET_MESSAGE_TYPES.STATS_UPDATE:
         this.emit('stats_update', message.data);
         break;
-      case 'stats':
+      case WEBSOCKET_MESSAGE_TYPES.STATS:
         this.emit('stats', message.data);
         break;
-      case 'logs':
+      case WEBSOCKET_MESSAGE_TYPES.LOGS:
         this.emit('logs', message.data);
         break;
       default:
@@ -89,7 +90,8 @@ class WebSocketService {
 
   private handleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+      console.warn('WebSocket: Max reconnection attempts reached. Please refresh the page if needed.');
+      this.emit('max_reconnects_reached', null);
       return;
     }
 
@@ -97,7 +99,7 @@ class WebSocketService {
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
     
     setTimeout(() => {
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      console.log(`WebSocket: Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
       if (this.token) {
         this.connect(this.token);
       }
@@ -131,16 +133,16 @@ class WebSocketService {
     this.callbacks[event].push(callback);
   }
 
-  requestLogs(limit: number = 50): void {
+  requestLogs(limit: number = DEFAULT_VALUES.LOG_LIMIT): void {
     this.sendMessage({
-      type: 'get_logs',
+      type: WEBSOCKET_MESSAGE_TYPES.GET_LOGS,
       limit,
     });
   }
 
   requestStats(): void {
     this.sendMessage({
-      type: 'get_stats',
+      type: WEBSOCKET_MESSAGE_TYPES.GET_STATS,
     });
   }
 
