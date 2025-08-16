@@ -272,15 +272,24 @@ func (s *WAFService) parseLogLine(line string) *dto.WAFLog {
 		wafLog.AttackType = s.getAttackTypeFromRuleID(matches[1])
 	}
 	
-	// URL 패턴으로 공격 유형 보완 (949110은 총합 점수라서 구체적이지 않음)
-	if wafLog.AttackType == "Unknown" || wafLog.RuleID == "949110" {
+	// 949110 (Anomaly Score)일 때는 URL 기반 상세 분석 수행
+	if wafLog.RuleID == "949110" || wafLog.AttackType == "Security Policy Violation" {
 		detectedType := s.detectAttackTypeFromURL(wafLog.URL, line)
-		wafLog.AttackType = detectedType
+		if detectedType != "Security Policy Violation" {
+			wafLog.AttackType = detectedType
+		}
 		s.log.WithFields(logrus.Fields{
 			"url": wafLog.URL,
 			"detected_type": detectedType,
 			"rule_id": wafLog.RuleID,
-		}).Debug("Attack type detection")
+			"original_type": wafLog.AttackType,
+		}).Debug("Attack type detection from URL")
+	}
+	
+	// Unknown일 때도 URL 기반 분석 시도
+	if wafLog.AttackType == "Unknown" {
+		detectedType := s.detectAttackTypeFromURL(wafLog.URL, line)
+		wafLog.AttackType = detectedType
 	}
 	
 	// 메시지 파싱
@@ -293,15 +302,15 @@ func (s *WAFService) parseLogLine(line string) *dto.WAFLog {
 		wafLog.Severity = s.mapSeverityToText(matches[1])
 	}
 	
-	// 실제 요청에서 전체 URL 추출 (쿼리 파라미터 포함) - 이것만 사용
+	// 실제 요청에서 전체 URL 추출 (쿼리 파라미터 포함)
 	requestRegex := regexp.MustCompile(`request: "([^"]+)"`)
 	if matches := requestRegex.FindStringSubmatch(line); len(matches) > 1 {
 		fullRequest := matches[1]
 		// 메서드와 URL 분리
 		parts := strings.Split(fullRequest, " ")
-		if len(parts) >= 3 {
+		if len(parts) >= 2 {
 			wafLog.Method = parts[0]
-			wafLog.URL = parts[1] + " " + parts[2] // URL + HTTP/1.1
+			wafLog.URL = parts[1] // URL만 저장 (HTTP/1.1 제외)
 		}
 		
 		s.log.WithFields(logrus.Fields{
@@ -321,43 +330,70 @@ func (s *WAFService) parseLogLine(line string) *dto.WAFLog {
 }
 
 func (s *WAFService) getAttackTypeFromRuleID(ruleID string) string {
-	// OWASP CRS 룰 ID를 기반으로 공격 유형 분류
+	// OWASP CRS 3.x 실제 룰 ID를 기반으로 공격 유형 분류
 	ruleIDInt, _ := strconv.Atoi(ruleID)
 	
 	switch {
-	case ruleIDInt >= 941100 && ruleIDInt <= 941999:
-		return "SQL Injection"
+	// SQL Injection Rules
 	case ruleIDInt >= 942100 && ruleIDInt <= 942999:
 		return "SQL Injection"
-	case ruleIDInt >= 943100 && ruleIDInt <= 943999:
-		return "Session Fixation"
+	case ruleIDInt >= 941100 && ruleIDInt <= 941999:
+		return "Cross-Site Scripting (XSS)"
+	
+	// Command Injection Rules  
+	case ruleIDInt >= 932100 && ruleIDInt <= 932199:
+		return "Command Injection"
+	case ruleIDInt >= 932200 && ruleIDInt <= 932299:
+		return "Command Injection"
+	
+	// File Inclusion Rules
+	case ruleIDInt >= 930100 && ruleIDInt <= 930199:
+		return "Local File Inclusion (LFI)"
+	case ruleIDInt >= 931100 && ruleIDInt <= 931199:
+		return "Remote File Inclusion (RFI)"
+	
+	// PHP Injection
+	case ruleIDInt >= 933100 && ruleIDInt <= 933999:
+		return "PHP Injection"
+	
+	// Java/NodeJS Injection
 	case ruleIDInt >= 944100 && ruleIDInt <= 944999:
 		return "Java Injection"
-	case ruleIDInt >= 951100 && ruleIDInt <= 951999:
-		return "Cross-Site Scripting (XSS)"
+	
+	// Session Fixation
+	case ruleIDInt >= 943100 && ruleIDInt <= 943999:
+		return "Session Fixation"
+	
+	// Protocol violations
 	case ruleIDInt >= 920100 && ruleIDInt <= 920999:
 		return "HTTP Protocol Violation"
 	case ruleIDInt >= 921100 && ruleIDInt <= 921999:
 		return "HTTP Protocol Anomaly"
-	case ruleIDInt >= 930100 && ruleIDInt <= 930999:
-		return "Application Attack"
-	case ruleIDInt >= 931100 && ruleIDInt <= 931999:
-		return "PHP Injection"
-	case ruleIDInt >= 932100 && ruleIDInt <= 932999:
-		return "Remote Command Execution"
-	case ruleIDInt >= 933100 && ruleIDInt <= 933999:
-		return "PHP Injection"
+	
+	// Generic Application Attack
+	case ruleIDInt >= 911100 && ruleIDInt <= 911999:
+		return "Method Not Allowed"
+	case ruleIDInt >= 913100 && ruleIDInt <= 913999:
+		return "Scanner Detection"
+	
+	// Anomaly scoring (aggregated)
+	case ruleIDInt == 949110:
+		return "Security Policy Violation"
+	case ruleIDInt >= 949100 && ruleIDInt <= 949999:
+		return "Anomaly Score Exceeded"
+		
 	default:
+		// Fallback based on rule ID patterns
 		if strings.Contains(strings.ToLower(ruleID), "sqli") {
 			return "SQL Injection"
 		} else if strings.Contains(strings.ToLower(ruleID), "xss") {
 			return "Cross-Site Scripting (XSS)"
-		} else if strings.Contains(strings.ToLower(ruleID), "rce") {
-			return "Remote Code Execution"
+		} else if strings.Contains(strings.ToLower(ruleID), "rce") || strings.Contains(strings.ToLower(ruleID), "cmd") {
+			return "Command Injection"
 		} else if strings.Contains(strings.ToLower(ruleID), "lfi") {
-			return "Local File Inclusion"
+			return "Local File Inclusion (LFI)"
 		} else if strings.Contains(strings.ToLower(ruleID), "rfi") {
-			return "Remote File Inclusion"
+			return "Remote File Inclusion (RFI)"
 		}
 		return "Unknown"
 	}
@@ -367,47 +403,111 @@ func (s *WAFService) detectAttackTypeFromURL(url, fullLine string) string {
 	// URL에서 실제 경로만 추출 (HTTP/1.1 제거)
 	actualURL := strings.Replace(url, " HTTP/1.1", "", 1)
 	
+	// URL 디코딩 (간단한 형태)
+	decodedURL := strings.ReplaceAll(actualURL, "%3C", "<")
+	decodedURL = strings.ReplaceAll(decodedURL, "%3E", ">")
+	decodedURL = strings.ReplaceAll(decodedURL, "%22", "\"")
+	decodedURL = strings.ReplaceAll(decodedURL, "%27", "'")
+	decodedURL = strings.ReplaceAll(decodedURL, "%28", "(")
+	decodedURL = strings.ReplaceAll(decodedURL, "%29", ")")
+	decodedURL = strings.ReplaceAll(decodedURL, "%20", " ")
+	decodedURL = strings.ReplaceAll(decodedURL, "+", " ")
+	
+	// 대소문자 구분 없이 검사하기 위해 소문자로 변환
+	lowerURL := strings.ToLower(decodedURL)
+	lowerFullLine := strings.ToLower(fullLine)
+	
 	s.log.WithFields(logrus.Fields{
 		"url_input": url,
 		"actual_url": actualURL,
-		"full_line_contains_union": strings.Contains(fullLine, "union"),
+		"decoded_url": decodedURL,
+		"lower_url": lowerURL,
+		"full_line_contains_union": strings.Contains(lowerFullLine, "union"),
+		"full_line_contains_script": strings.Contains(lowerFullLine, "script"),
 	}).Debug("Analyzing URL for attack type")
 	
-	// XSS 패턴 체크
-	if strings.Contains(actualURL, "<script") || strings.Contains(actualURL, "alert(") ||
-	   strings.Contains(actualURL, "javascript:") || strings.Contains(actualURL, "<img") {
-		return "Cross-Site Scripting (XSS)"
+	// Command Injection 패턴 (먼저 체크 - SQL과 겹치는 패턴 때문에)
+	cmdPatterns := []string{
+		"cmd=", "exec=", "system=", "shell_exec", "passthru", 
+		"ls%20", "cat%20", "whoami", "pwd", "id;", "uname",
+		"nc%20", "wget%20", "curl%20", "/bin/", "/usr/bin/",
+		"ping%20", "nslookup", "telnet", "ssh%20",
+	}
+	// Command injection 특수 문자 체크 (URL 파라미터에서)
+	cmdSymbols := []string{";%20", "|%20", "&&%20", "||%20", "`", "$("}
+	
+	// URL 파라미터에서 command injection 확인
+	for _, symbol := range cmdSymbols {
+		if strings.Contains(lowerURL, symbol) {
+			return "Command Injection"
+		}
+	}
+	for _, pattern := range cmdPatterns {
+		if strings.Contains(lowerURL, pattern) || strings.Contains(lowerFullLine, pattern) {
+			return "Command Injection"
+		}
 	}
 	
-	// LFI 패턴 체크
-	if strings.Contains(actualURL, "../") || strings.Contains(actualURL, "/etc/passwd") ||
-	   strings.Contains(actualURL, "/etc/shadow") || strings.Contains(actualURL, "boot.ini") {
-		return "Local File Inclusion (LFI)"
+	// XSS 패턴 체크 (확장된 패턴)
+	xssPatterns := []string{
+		"<script", "alert(", "javascript:", "<img", "onerror=", "onload=", 
+		"document.cookie", "eval(", "<iframe", "onmouseover=", "onclick=",
+		"<svg", "onanimation", "<body", "<object", "<embed",
+	}
+	for _, pattern := range xssPatterns {
+		if strings.Contains(lowerURL, pattern) || strings.Contains(lowerFullLine, pattern) {
+			return "Cross-Site Scripting (XSS)"
+		}
 	}
 	
-	// SQL Injection 패턴 (URL에서)
-	if strings.Contains(actualURL, "union") || strings.Contains(actualURL, "select") ||
-	   strings.Contains(actualURL, "' or ") || strings.Contains(actualURL, "' OR ") ||
-	   strings.Contains(actualURL, "'1'='1") {
-		return "SQL Injection"
+	// SQL Injection 패턴 (Command Injection과 겹치지 않는 순수 SQL 패턴)
+	sqlPatterns := []string{
+		"union", "select", "' or ", "' or 1=", "'1'='1", "admin'--", 
+		"' and ", "or 1=1", "union select", "drop table", "insert into",
+		"update set", "delete from", "/*", "*/", "information_schema", 
+		"benchmark(", "sleep(", "waitfor", "0x", "char(", "ascii(",
+		"substring(", "@@version", "@@user", "sp_", "xp_",
+	}
+	for _, pattern := range sqlPatterns {
+		if strings.Contains(lowerURL, pattern) || strings.Contains(lowerFullLine, pattern) {
+			return "SQL Injection"
+		}
 	}
 	
-	// SQL Injection (POST 데이터에서) - fullLine 전체 로그에서 확인
-	if strings.Contains(strings.ToLower(fullLine), "union select") || 
-	   strings.Contains(strings.ToLower(fullLine), "' or 1=1") ||
-	   strings.Contains(strings.ToLower(fullLine), "'1'='1") || 
-	   strings.Contains(strings.ToLower(fullLine), "admin'--") {
-		return "SQL Injection"
+	// Local File Inclusion (LFI) 패턴
+	lfiPatterns := []string{
+		"../", "/etc/passwd", "/etc/shadow", "boot.ini", "windows/system32",
+		"..\\", "c:\\", "/proc/", "/etc/hosts", "web.config", ".htaccess",
+	}
+	for _, pattern := range lfiPatterns {
+		if strings.Contains(lowerURL, pattern) || strings.Contains(lowerFullLine, pattern) {
+			return "Local File Inclusion (LFI)"
+		}
 	}
 	
-	// Command Injection
-	if strings.Contains(actualURL, "cmd=") || strings.Contains(actualURL, "exec=") {
-		return "Command Injection"
+	// Remote File Inclusion (RFI) 패턴
+	rfiPatterns := []string{
+		"http://", "https://", "ftp://", "file://", "data:",
+	}
+	for _, pattern := range rfiPatterns {
+		if strings.Contains(lowerURL, pattern) && strings.Contains(lowerURL, "include") {
+			return "Remote File Inclusion (RFI)"
+		}
 	}
 	
-	// Path Traversal (일반적인 .. 패턴)
-	if strings.Contains(actualURL, "..") {
+	// Path Traversal 패턴
+	if strings.Contains(lowerURL, "..") || strings.Contains(lowerURL, "..\\") {
 		return "Path Traversal"
+	}
+	
+	// PHP Injection 패턴
+	phpPatterns := []string{
+		"<?php", "<?=", "<? ", "php://", "data://php",
+	}
+	for _, pattern := range phpPatterns {
+		if strings.Contains(lowerURL, pattern) || strings.Contains(lowerFullLine, pattern) {
+			return "PHP Injection"
+		}
 	}
 	
 	return "Security Policy Violation"
@@ -440,10 +540,72 @@ func generateLogID() string {
 	return fmt.Sprintf("log_%d_%d", time.Now().Unix(), time.Now().Nanosecond()%1000000)
 }
 
+// Enhanced helper functions for realistic log generation
+func (s *WAFService) generateRuleIDAndSeverity(attackType string, blocked bool) (string, string) {
+	if !blocked {
+		return "", ""
+	}
+	
+	switch attackType {
+	case "SQL Injection":
+		return "942100", "Critical"
+	case "Cross-Site Scripting (XSS)":
+		return "941100", "High"
+	case "Command Injection":
+		return "932160", "Critical"
+	case "Path Traversal":
+		return "930100", "High"
+	case "Local File Inclusion (LFI)":
+		return "930110", "High"
+	case "Remote File Inclusion (RFI)":
+		return "930120", "Critical"
+	case "PHP Injection":
+		return "933100", "High"
+	case "Java Injection":
+		return "944100", "High"
+	case "Session Fixation":
+		return "943100", "Medium"
+	case "HTTP Protocol Violation":
+		return "920100", "Medium"
+	case "HTTP Protocol Anomaly":
+		return "921100", "Low"
+	default:
+		return "949110", "Medium"
+	}
+}
+
+func (s *WAFService) generateRealisticMessage(attackType string, blocked bool) string {
+	if !blocked {
+		return "Normal request processed"
+	}
+	
+	messages := map[string]string{
+		"SQL Injection": "SQL injection attack detected and blocked",
+		"Cross-Site Scripting (XSS)": "XSS attack vector identified and neutralized",
+		"Command Injection": "Command injection attempt blocked",
+		"Path Traversal": "Directory traversal attack prevented",
+		"Local File Inclusion (LFI)": "Local file inclusion attempt blocked",
+		"Remote File Inclusion (RFI)": "Remote file inclusion attack prevented",
+		"PHP Injection": "PHP code injection detected and blocked",
+		"Java Injection": "Java injection attack neutralized",
+		"Session Fixation": "Session fixation attempt detected",
+		"HTTP Protocol Violation": "HTTP protocol violation detected",
+		"HTTP Protocol Anomaly": "Suspicious HTTP request pattern identified",
+	}
+	
+	if msg, exists := messages[attackType]; exists {
+		return msg
+	}
+	return "Security policy violation detected"
+}
+
 // AddMockLog adds a mock WAF log for testing purposes
 func (s *WAFService) AddMockLog(clientIP, method, uri, userAgent, attackType string, blocked bool) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+	
+	// Generate realistic rule ID and severity based on attack type
+	ruleID, severity := s.generateRuleIDAndSeverity(attackType, blocked)
 	
 	mockLog := dto.WAFLog{
 		ID:         generateLogID(),
@@ -454,9 +616,9 @@ func (s *WAFService) AddMockLog(clientIP, method, uri, userAgent, attackType str
 		UserAgent:  userAgent,
 		Blocked:    blocked,
 		AttackType: attackType,
-		RuleID:     func() string { if blocked { return "900001" } else { return "" } }(),
-		Message:    func() string { if blocked { return "Attack blocked: " + attackType } else { return "Normal request" } }(),
-		Severity:   func() string { if blocked { return "HIGH" } else { return "" } }(),
+		RuleID:     ruleID,
+		Message:    s.generateRealisticMessage(attackType, blocked),
+		Severity:   severity,
 		RawLog:     fmt.Sprintf("%s - - [%s] \"%s %s HTTP/1.1\" %d - \"-\" \"%s\"", 
 			clientIP, 
 			time.Now().Format("02/Jan/2006:15:04:05 -0700"),

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: waf-frontend
-        image: waf-frontend:v2.0.0
+        image: waf-frontend:v3.0.1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80

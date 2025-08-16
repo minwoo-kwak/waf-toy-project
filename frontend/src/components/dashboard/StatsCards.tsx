@@ -58,19 +58,30 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, loading }) => {
   ];
 
   return (
-    <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 3 }}>
       {statsCards.map((card, index) => (
-        <Box key={index} sx={{ flex: '1 1 250px', minWidth: '250px' }}>
-          <Card
-            sx={{
-              height: '140px',
-              display: 'flex',
-              flexDirection: 'column',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Card
+          key={index}
+          elevation={0}
+          sx={{
+            height: '160px',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative',
+            overflow: 'hidden',
+            background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
+            border: '1px solid #e2e8f0',
+            borderRadius: 3,
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            cursor: 'pointer',
+            '&:hover': {
+              transform: 'translateY(-4px) scale(1.02)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+              borderColor: card.color,
+            }
+          }}
+        >
+          <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 3 }}>
               <Box
                 sx={{
                   display: 'flex',
@@ -79,55 +90,87 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, loading }) => {
                   mb: 1,
                 }}
               >
-                <Box>
+                <Box sx={{ flex: 1 }}>
                   <Typography
                     variant="body2"
-                    color="textSecondary"
-                    gutterBottom
-                    sx={{ fontWeight: 500 }}
+                    sx={{ 
+                      fontWeight: 600, 
+                      color: '#64748b',
+                      fontSize: '0.875rem',
+                      mb: 1.5,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}
                   >
                     {card.title}
                   </Typography>
                   {loading ? (
-                    <Skeleton width={80} height={32} />
+                    <Skeleton width={120} height={40} sx={{ borderRadius: 2 }} />
                   ) : (
-                    <Typography variant="h4" sx={{ fontWeight: 'bold', color: card.color }}>
+                    <Typography 
+                      variant="h3" 
+                      sx={{ 
+                        fontWeight: 800, 
+                        color: '#1e293b',
+                        fontSize: '2.25rem',
+                        lineHeight: 1.2,
+                        background: `linear-gradient(135deg, ${card.color} 0%, ${card.color}cc 100%)`,
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text'
+                      }}
+                    >
                       {card.value}
                     </Typography>
                   )}
                 </Box>
                 <Box
                   sx={{
-                    p: 1,
-                    borderRadius: '8px',
-                    backgroundColor: card.bgColor,
+                    p: 2,
+                    borderRadius: 3,
+                    background: `linear-gradient(135deg, ${card.color}15 0%, ${card.color}25 100%)`,
+                    border: `1px solid ${card.color}30`,
+                    transition: 'all 0.3s ease'
                   }}
                 >
-                  <card.icon sx={{ color: card.color, fontSize: 28 }} />
+                  <card.icon sx={{ 
+                    color: card.color, 
+                    fontSize: 32,
+                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                  }} />
                 </Box>
               </Box>
 
-              {/* Progress bar for block rate */}
-              {card.title === 'Block Rate' && stats && (
-                <Box sx={{ mt: 'auto' }}>
-                  <LinearProgress
-                    variant="determinate"
-                    value={Math.min(parseFloat(blockRate), 100)}
-                    sx={{
-                      height: 6,
-                      borderRadius: 3,
-                      backgroundColor: 'rgba(0,0,0,0.1)',
-                      '& .MuiLinearProgress-bar': {
-                        backgroundColor: card.color,
-                        borderRadius: 3,
-                      },
-                    }}
-                  />
+            {/* Enhanced Progress bar for block rate */}
+            {card.title === 'Block Rate' && stats && (
+              <Box sx={{ mt: 'auto', pt: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
+                    Threat Level
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: card.color, fontWeight: 700 }}>
+                    {parseFloat(blockRate) > 10 ? 'High' : parseFloat(blockRate) > 5 ? 'Medium' : 'Low'}
+                  </Typography>
                 </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Box>
+                <LinearProgress
+                  variant="determinate"
+                  value={Math.min(parseFloat(blockRate), 100)}
+                  sx={{
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: '#f1f5f9',
+                    border: '1px solid #e2e8f0',
+                    '& .MuiLinearProgress-bar': {
+                      background: `linear-gradient(90deg, ${card.color} 0%, ${card.color}cc 100%)`,
+                      borderRadius: 4,
+                      boxShadow: `0 2px 8px ${card.color}40`
+                    },
+                  }}
+                />
+              </Box>
+            )}
+          </CardContent>
+        </Card>
       ))}
     </Box>
   );

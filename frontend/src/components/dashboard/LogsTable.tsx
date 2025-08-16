@@ -29,6 +29,73 @@ interface LogsTableProps {
 }
 
 const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
+  const getAttackTypeColor = (attackType: string) => {
+    const colors: Record<string, string> = {
+      'SQL Injection': '#fee2e2',
+      'Cross-Site Scripting (XSS)': '#fef3c7',
+      'Local File Inclusion (LFI)': '#f3e8ff',
+      'Remote File Inclusion (RFI)': '#ede9fe',
+      'Command Injection': '#fecaca',
+      'Path Traversal': '#fed7aa',
+      'HTTP Protocol Violation': '#dbeafe',
+      'HTTP Protocol Anomaly': '#e0f2fe',
+      'Security Policy Violation': '#dcfce7',
+      'PHP Injection': '#fdba74',
+      'Java Injection': '#e5e7eb',
+      'Session Fixation': '#a7f3d0',
+      'Remote Code Execution': '#fca5a5',
+    };
+    return colors[attackType] || '#f3f4f6';
+  };
+
+  const getAttackTypeTextColor = (attackType: string) => {
+    const colors: Record<string, string> = {
+      'SQL Injection': '#dc2626',
+      'Cross-Site Scripting (XSS)': '#d97706',
+      'Local File Inclusion (LFI)': '#7c3aed',
+      'Remote File Inclusion (RFI)': '#8b5cf6',
+      'Command Injection': '#ef4444',
+      'Path Traversal': '#ea580c',
+      'HTTP Protocol Violation': '#2563eb',
+      'HTTP Protocol Anomaly': '#0284c7',
+      'Security Policy Violation': '#16a34a',
+      'PHP Injection': '#ea580c',
+      'Java Injection': '#374151',
+      'Session Fixation': '#059669',
+      'Remote Code Execution': '#dc2626',
+    };
+    return colors[attackType] || '#6b7280';
+  };
+
+  const getSeverityBgColor = (severity: string) => {
+    switch (severity?.toLowerCase()) {
+      case 'critical': return '#fee2e2';
+      case 'high': return '#fef3c7';
+      case 'medium': return '#fef3c7';
+      case 'low': return '#e0f2fe';
+      default: return '#f3f4f6';
+    }
+  };
+
+  const getSeverityTextColor = (severity: string) => {
+    switch (severity?.toLowerCase()) {
+      case 'critical': return '#dc2626';
+      case 'high': return '#dc2626';
+      case 'medium': return '#d97706';
+      case 'low': return '#0284c7';
+      default: return '#6b7280';
+    }
+  };
+
+  const getSeverityBorderColor = (severity: string) => {
+    switch (severity?.toLowerCase()) {
+      case 'critical': return '#fecaca';
+      case 'high': return '#fecaca';
+      case 'medium': return '#fde68a';
+      case 'low': return '#bae6fd';
+      default: return '#e5e7eb';
+    }
+  };
   const getSeverityIcon = (severity: string) => {
     switch (severity.toLowerCase()) {
       case 'critical':
@@ -121,7 +188,13 @@ const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
   return (
     <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
       <Table size="small" stickyHeader>
-        <TableHead>
+        <TableHead sx={{ 
+          '& .MuiTableCell-head': {
+            backgroundColor: '#f8fafc',
+            borderBottom: '2px solid #e2e8f0',
+            fontSize: '0.875rem'
+          }
+        }}>
           <TableRow>
             <TableCell sx={{ fontWeight: 'bold' }}>Time</TableCell>
             <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>

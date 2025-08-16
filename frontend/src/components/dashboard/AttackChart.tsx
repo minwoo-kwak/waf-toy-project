@@ -7,17 +7,26 @@ interface AttackChartProps {
   stats: WAFStats | null;
 }
 
-const COLORS = [
-  '#ff6b6b', // Red
-  '#4ecdc4', // Teal
-  '#45b7d1', // Blue
-  '#f9ca24', // Yellow
-  '#6c5ce7', // Purple
-  '#a0e7e5', // Light Teal
-  '#ffeaa7', // Light Yellow
-  '#fab1a0', // Light Orange
-  '#fd79a8', // Pink
-  '#00b894', // Green
+const ATTACK_TYPE_COLORS = {
+  'SQL Injection': '#e74c3c',
+  'Cross-Site Scripting (XSS)': '#f39c12', 
+  'Local File Inclusion (LFI)': '#9b59b6',
+  'Remote File Inclusion (RFI)': '#8e44ad',
+  'Command Injection': '#c0392b',
+  'Path Traversal': '#d35400',
+  'HTTP Protocol Violation': '#2980b9',
+  'HTTP Protocol Anomaly': '#3498db',
+  'Security Policy Violation': '#27ae60',
+  'PHP Injection': '#e67e22',
+  'Java Injection': '#34495e',
+  'Session Fixation': '#16a085',
+  'Remote Code Execution': '#8b0000',
+  'Unknown': '#95a5a6'
+};
+
+const FALLBACK_COLORS = [
+  '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7',
+  '#a0e7e5', '#ffeaa7', '#fab1a0', '#fd79a8', '#00b894'
 ];
 
 const AttackChart: React.FC<AttackChartProps> = ({ stats }) => {
@@ -60,7 +69,11 @@ const AttackChart: React.FC<AttackChartProps> = ({ stats }) => {
   const chartData = attackTypes.map(([type, count]) => ({
     name: type,
     value: count,
+    color: ATTACK_TYPE_COLORS[type as keyof typeof ATTACK_TYPE_COLORS] || FALLBACK_COLORS[Math.floor(Math.random() * FALLBACK_COLORS.length)]
   }));
+  
+  // Sort by value for better visualization
+  chartData.sort((a, b) => b.value - a.value);
 
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
     if (percent < 0.05) return null; // Hide labels for slices smaller than 5%
@@ -112,30 +125,42 @@ const AttackChart: React.FC<AttackChartProps> = ({ stats }) => {
   };
 
   return (
-    <Box sx={{ width: '100%', height: 300 }}>
+    <Box sx={{ width: '100%', height: 350 }}>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
             data={chartData}
             cx="50%"
-            cy="50%"
+            cy="45%"
             labelLine={false}
             label={renderCustomizedLabel}
-            outerRadius={80}
+            outerRadius={90}
+            innerRadius={25}
             fill="#8884d8"
             dataKey="value"
+            paddingAngle={2}
           >
             {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              <Cell key={`cell-${index}`} fill={entry.color} />
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
           <Legend 
             verticalAlign="bottom" 
-            height={36}
-            formatter={(value: string) => (
-              <span style={{ fontSize: '12px' }}>{value}</span>
+            height={60}
+            formatter={(value: string, entry: any) => (
+              <span style={{ 
+                fontSize: '11px', 
+                fontWeight: 600,
+                color: '#374151'
+              }}>
+                {value} ({entry.payload?.value || 0})
+              </span>
             )}
+            wrapperStyle={{
+              paddingTop: '20px',
+              fontSize: '12px'
+            }}
           />
         </PieChart>
       </ResponsiveContainer>

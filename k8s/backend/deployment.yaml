@@ -17,7 +17,7 @@ spec:
       serviceAccountName: waf-backend-sa
       containers:
       - name: waf-backend
-        image: waf-backend:v2.0.0
+        image: waf-backend:v3.0.4
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -39,6 +39,18 @@ spec:
               optional: true
         - name: INGRESS_URL
           value: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local"  # Ingress Service
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: waf-secrets
+              key: GOOGLE_CLIENT_ID
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: waf-secrets
+              key: GOOGLE_CLIENT_SECRET
+        - name: GOOGLE_REDIRECT_URL
+          value: "http://localhost:80/auth/callback"
         livenessProbe:
           httpGet:
             path: /health

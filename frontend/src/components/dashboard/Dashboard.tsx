@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Grid,
   Card,
   CardContent,
   Typography,
@@ -13,6 +12,10 @@ import {
   MenuItem,
   Chip,
   Alert,
+  Container,
+  Paper,
+  Slide,
+  Fade,
 } from '@mui/material';
 import {
   Security as SecurityIcon,
@@ -27,6 +30,7 @@ import webSocketService from '../../services/websocket';
 import StatsCards from './StatsCards';
 import LogsTable from './LogsTable';
 import AttackChart from './AttackChart';
+import LiveLogMonitor from './LiveLogMonitor';
 
 const Dashboard: React.FC = () => {
   const { authState, logout } = useAuth();
@@ -118,21 +122,37 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
-      {/* App Bar */}
-      <AppBar position="static" elevation={1}>
-        <Toolbar>
-          <SecurityIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            WAF SaaS Dashboard
-          </Typography>
+    <Box sx={{ flexGrow: 1, bgcolor: '#f8fafc', minHeight: '100vh' }}>
+      {/* Modern App Bar */}
+      <AppBar position="static" elevation={0} sx={{ 
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(255,255,255,0.1)'
+      }}>
+        <Toolbar sx={{ minHeight: '72px !important' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mr: 3 }}>
+            <SecurityIcon sx={{ mr: 1.5, fontSize: 28 }} />
+            <Typography variant="h5" component="div" sx={{ fontWeight: 700, letterSpacing: -0.5 }}>
+              WAF Guardian
+            </Typography>
+          </Box>
           
-          <Chip
-            label={wsConnected ? 'Live' : 'Disconnected'}
-            color={wsConnected ? 'success' : 'error'}
-            size="small"
-            sx={{ mr: 2 }}
-          />
+          <Box sx={{ flexGrow: 1 }} />
+          
+          <Slide direction="left" in={true} mountOnEnter unmountOnExit>
+            <Chip
+              label={wsConnected ? '🟢 Live Monitoring' : '🔴 Disconnected'}
+              sx={{ 
+                mr: 2,
+                bgcolor: wsConnected ? 'rgba(76, 175, 80, 0.9)' : 'rgba(244, 67, 54, 0.9)',
+                color: 'white',
+                fontWeight: 600,
+                '& .MuiChip-label': {
+                  px: 2
+                }
+              }}
+            />
+          </Slide>
 
           <IconButton color="inherit" onClick={handleRefresh}>
             <RefreshIcon />
@@ -199,75 +219,143 @@ const Dashboard: React.FC = () => {
         </Toolbar>
       </AppBar>
 
-      {/* Main Content */}
-      <Box sx={{ p: 3 }}>
+      {/* Modern Main Content */}
+      <Container maxWidth="xl" sx={{ py: 4 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
           </Alert>
         )}
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {/* Stats Cards */}
-          <StatsCards stats={stats} loading={loading} />
+        <Fade in={true} timeout={800}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {/* Stats Cards */}
+            <StatsCards stats={stats} loading={loading} />
 
-          {/* Charts Row */}
-          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-            {/* Attack Type Chart */}
-            <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Attack Types Distribution
-                  </Typography>
-                  <AttackChart stats={stats} />
-                </CardContent>
-              </Card>
-            </Box>
-
-            {/* System Info */}
-            <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    System Information
-                  </Typography>
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="body2" paragraph>
-                      <strong>WAF Engine:</strong> ModSecurity 3.x
-                    </Typography>
-                    <Typography variant="body2" paragraph>
-                      <strong>Rule Set:</strong> OWASP CRS 4.x
-                    </Typography>
-                    <Typography variant="body2" paragraph>
-                      <strong>Status:</strong>{' '}
-                      <Chip
-                        label="Active"
-                        color="success"
-                        size="small"
-                      />
-                    </Typography>
-                    <Typography variant="body2" paragraph>
-                      <strong>Live Connections:</strong>{' '}
-                      {wsConnected ? '1' : '0'}
+            {/* Enhanced Charts Row */}
+            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              {/* Enhanced Attack Type Chart */}
+              <Box sx={{ flex: '2 1 600px', minWidth: '600px' }}>
+                <Paper
+                  elevation={0}
+                  sx={{ 
+                    p: 3,
+                    background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 3,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 12px 32px rgba(0,0,0,0.1)'
+                    }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                    <Box sx={{ 
+                      p: 1.5, 
+                      borderRadius: 2, 
+                      background: 'linear-gradient(135deg, #ff6b6b, #ee5a52)',
+                      mr: 2
+                    }}>
+                      <SecurityIcon sx={{ color: 'white', fontSize: 24 }} />
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                      Threat Intelligence Dashboard
                     </Typography>
                   </Box>
-                </CardContent>
-              </Card>
-            </Box>
-          </Box>
+                  <AttackChart stats={stats} />
+                </Paper>
+              </Box>
 
-          {/* Recent Logs */}
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Recent Security Events
-              </Typography>
-              <LogsTable logs={recentLogs} loading={loading} />
-            </CardContent>
-          </Card>
-        </Box>
-      </Box>
+              {/* Enhanced System Info */}
+              <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
+                <Paper
+                  elevation={0}
+                  sx={{ 
+                    p: 3,
+                    height: '100%',
+                    background: 'linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%)',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 3,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 12px 32px rgba(0,0,0,0.1)'
+                    }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                    <Box sx={{ 
+                      p: 1.5, 
+                      borderRadius: 2, 
+                      background: 'linear-gradient(135deg, #4ecdc4, #44a08d)',
+                      mr: 2
+                    }}>
+                      <SecurityIcon sx={{ color: 'white', fontSize: 24 }} />
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                      System Status
+                    </Typography>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>
+                        WAF Engine
+                      </Typography>
+                      <Chip
+                        label="ModSecurity 3.x"
+                        size="small"
+                        sx={{ bgcolor: '#e0f2fe', color: '#0277bd', fontWeight: 600 }}
+                      />
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>
+                        Rule Set
+                      </Typography>
+                      <Chip
+                        label="OWASP CRS 4.x"
+                        size="small"
+                        sx={{ bgcolor: '#f3e5f5', color: '#7b1fa2', fontWeight: 600 }}
+                      />
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>
+                        Protection Status
+                      </Typography>
+                      <Chip
+                        label="🛡️ Active"
+                        size="small"
+                        sx={{ bgcolor: '#e8f5e8', color: '#2e7d32', fontWeight: 600 }}
+                      />
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>
+                        Live Monitoring
+                      </Typography>
+                      <Chip
+                        label={wsConnected ? '🟢 Connected' : '🔴 Offline'}
+                        size="small"
+                        sx={{ 
+                          bgcolor: wsConnected ? '#e8f5e8' : '#ffebee', 
+                          color: wsConnected ? '#2e7d32' : '#c62828', 
+                          fontWeight: 600 
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                </Paper>
+              </Box>
+            </Box>
+
+            {/* Live Security Monitor - Full Width */}
+            <LiveLogMonitor logs={recentLogs} isConnected={wsConnected} />
+          </Box>
+        </Fade>
+      </Container>
     </Box>
   );
 };
