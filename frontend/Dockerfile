@@ -18,6 +18,9 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
+# Copy nginx config with React Router support
+COPY default.conf /etc/nginx/conf.d/default.conf
+
 # Copy built application
 COPY --from=builder /app/build /usr/share/nginx/html
 

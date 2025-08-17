@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker build:*)",
+      "Bash(kubectl set image:*)",
+      "Bash(kubectl rollout status:*)",
+      "Bash(kubectl apply:*)",
+      "Bash(kubectl set env:*)"
+    ],
+    "deny": []
+  }
+}

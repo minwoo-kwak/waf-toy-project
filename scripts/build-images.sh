@@ -3,9 +3,9 @@
 # WAF Toy Project - Docker Images Build Script
 echo "🏗️ Building WAF Toy Project Docker Images..."
 
-# Set image tags
-BACKEND_IMAGE="waf-backend:v1.0.0"
-FRONTEND_IMAGE="waf-frontend:v1.0.0"
+# Set image tags - Enhanced UI/UX and Security v3.0.0
+BACKEND_IMAGE="waf-backend:v3.0.0"
+FRONTEND_IMAGE="waf-frontend:v3.0.0"
 
 # Build backend image
 echo "📦 Building backend image..."
