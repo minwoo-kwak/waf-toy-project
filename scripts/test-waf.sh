@@ -4,7 +4,7 @@
 echo "🔐 Testing WAF Security Features..."
 
 # Set target URL
-TARGET_URL="http://waf-local.dev"
+TARGET_URL="http://localhost:3000"
 API_URL="$TARGET_URL/api/v1/ping"
 
 echo "🎯 Target: $TARGET_URL"
@@ -18,6 +18,7 @@ fi
 
 echo "✅ Target is reachable"
 echo ""
+
 
 # Test 1: Normal request (should pass)
 echo "🧪 Test 1: Normal API request"
