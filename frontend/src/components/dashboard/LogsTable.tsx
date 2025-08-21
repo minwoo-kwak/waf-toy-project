@@ -22,6 +22,7 @@ import {
 } from '@mui/icons-material';
 import { WAFLog } from '../../types/waf';
 import { formatDistanceToNow } from 'date-fns';
+import { extractRuleIdsFromMessage, getMostSevereAttackType } from '../../utils/crsMapping';
 
 interface LogsTableProps {
   logs: WAFLog[];
@@ -233,12 +234,32 @@ const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
                 </Typography>
               </TableCell>
               <TableCell>
-                <Chip
-                  label={log.attack_type || 'Unknown'}
-                  size="small"
-                  variant="outlined"
-                  color={log.attack_type ? 'warning' : 'default'}
-                />
+                {(() => {
+                  // CRS 룰 ID를 기반으로 실제 공격 유형 분석
+                  const ruleIds = extractRuleIdsFromMessage(log.message || '');
+                  const attackType = ruleIds.length > 0 
+                    ? getMostSevereAttackType(ruleIds)
+                    : { category: log.attack_type || 'Unknown', color: '#636e72', icon: '❓' };
+                  
+                  return (
+                    <Chip
+                      label={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <span>{attackType.icon}</span>
+                          {attackType.category}
+                        </Box>
+                      }
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        bgcolor: attackType.color + '20',
+                        borderColor: attackType.color,
+                        color: attackType.color,
+                        fontWeight: 600
+                      }}
+                    />
+                  );
+                })()}
               </TableCell>
               <TableCell>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
