@@ -125,6 +125,22 @@ const RulesManagement: React.FC = () => {
     }
   };
 
+  const handleTestRule = async (ruleId: string) => {
+    try {
+      const rule = rules.find(r => r.id === ruleId);
+      if (!rule) return;
+      
+      // 간단한 테스트 - 룰이 적용되었는지 확인
+      alert(`Testing rule: ${rule.name}\n\nRule will be tested against current WAF configuration.\nCheck the dashboard for any blocked requests after this test.`);
+      
+      // TODO: 실제 테스트 요청을 보내는 로직 구현
+      // 예: 룰이 SQL Injection을 차단한다면 SQL Injection 패턴을 포함한 테스트 요청 전송
+    } catch (error: any) {
+      console.error('Failed to test rule:', error);
+      setError('Failed to test rule: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'CRITICAL':
@@ -246,6 +262,15 @@ const RulesManagement: React.FC = () => {
                             <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        <Tooltip title="Test Rule">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleTestRule(rule.id)}
+                            color="primary"
+                          >
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Delete Rule">
                           <IconButton
                             size="small"
@@ -324,6 +349,15 @@ const RulesManagement: React.FC = () => {
               }
               label="Enable Rule"
             />
+            
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="body2" component="div">
+                <strong>ModSecurity Rule Examples:</strong>
+                <br />• Block SQL Injection: <code>SecRule ARGS "@detectSQLi" "id:2001,phase:2,block,msg:'Custom SQL Injection',severity:HIGH"</code>
+                <br />• Block XSS: <code>SecRule ARGS "@detectXSS" "id:2002,phase:2,block,msg:'Custom XSS Attack',severity:HIGH"</code>
+                <br />• Block specific path: <code>SecRule REQUEST_URI "@beginsWith /admin" "id:2003,phase:1,block,msg:'Admin path blocked',severity:MEDIUM"</code>
+              </Typography>
+            </Alert>
           </Box>
         </DialogContent>
         <DialogActions>

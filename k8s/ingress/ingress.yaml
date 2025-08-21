@@ -27,6 +27,9 @@ metadata:
         pass,\
         nolog,\
         ctl:ruleEngine=Off"
+    # Reference to custom rules ConfigMap
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      # Custom rules will be applied via ConfigMap mount
     
     # Rate limiting
     nginx.ingress.kubernetes.io/rate-limit: "100"

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: modsecurity-config
+  namespace: default
+data:
+  custom-rules.conf: |
+    # Custom ModSecurity Rules
+    # This file contains user-defined security rules
+    
+    # Sample rules - will be replaced by user-created rules
+    SecRule ARGS "@detectSQLi" "id:1001,phase:2,block,msg:'SQL Injection Attack',severity:HIGH"
+    SecRule ARGS "@detectXSS" "id:1002,phase:2,block,msg:'XSS Attack',severity:HIGH"

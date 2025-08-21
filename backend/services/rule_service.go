@@ -233,6 +233,20 @@ func (s *RuleService) updateConfigMap() error {
 		return nil
 	}
 	
+	// 1. ConfigMap 업데이트
+	if err := s.updateRulesConfigMap(); err != nil {
+		s.log.WithError(err).Error("Failed to update rules ConfigMap")
+	}
+	
+	// 2. Ingress annotation 업데이트
+	if err := s.updateIngressAnnotation(); err != nil {
+		s.log.WithError(err).Error("Failed to update Ingress annotation")
+	}
+	
+	return nil
+}
+
+func (s *RuleService) updateRulesConfigMap() error {
 	ctx := context.Background()
 	configMapsClient := s.k8sClient.CoreV1().ConfigMaps(s.namespace)
 	
@@ -263,6 +277,59 @@ func (s *RuleService) updateConfigMap() error {
 	}
 	
 	s.log.Info("ConfigMap updated successfully")
+	return nil
+}
+
+func (s *RuleService) updateIngressAnnotation() error {
+	ctx := context.Background()
+	ingressClient := s.k8sClient.NetworkingV1().Ingresses(s.namespace)
+	
+	// Ingress 가져오기
+	ingress, err := ingressClient.Get(ctx, "waf-ingress", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get Ingress: %w", err)
+	}
+	
+	if ingress.Annotations == nil {
+		ingress.Annotations = make(map[string]string)
+	}
+	
+	// 기본 ModSecurity 설정
+	baseConfig := `SecRuleEngine On
+SecAuditEngine RelevantOnly
+SecAuditLogParts ABIJDEFHZ
+SecAuditLogType Serial
+SecAuditLog /var/log/nginx/modsec_audit.log
+
+# Allow OAuth callback - disable some rules for auth paths
+SecRule REQUEST_URI "^/auth/callback" \
+  "id:1000,\
+  phase:1,\
+  pass,\
+  nolog,\
+  ctl:ruleEngine=Off"
+
+# Custom Rules`
+	
+	// 활성화된 커스텀 룰들 추가
+	var customRulesSnippet string
+	for _, rule := range s.rules {
+		if rule.Enabled {
+			customRulesSnippet += fmt.Sprintf("\n# %s\n# %s\n%s", rule.Name, rule.Description, rule.RuleText)
+		}
+	}
+	
+	// ModSecurity snippet 업데이트
+	fullConfig := baseConfig + customRulesSnippet
+	ingress.Annotations["nginx.ingress.kubernetes.io/modsecurity-snippet"] = fullConfig
+	
+	// Ingress 업데이트
+	_, err = ingressClient.Update(ctx, ingress, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update Ingress: %w", err)
+	}
+	
+	s.log.Info("Ingress ModSecurity annotation updated successfully")
 	return nil
 }
 
