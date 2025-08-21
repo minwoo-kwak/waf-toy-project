@@ -22,7 +22,7 @@ import {
 } from '@mui/icons-material';
 import { WAFLog } from '../../types/waf';
 import { formatDistanceToNow } from 'date-fns';
-import { extractRuleIdsFromMessage, getMostSevereAttackType } from '../../utils/crsMapping';
+import { extractRuleIdsFromMessage, getMostSevereAttackType, getAttackTypeFromAnomalyScore, extractAnomalyScore } from '../../utils/crsMapping';
 
 interface LogsTableProps {
   logs: WAFLog[];
@@ -235,11 +235,23 @@ const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
               </TableCell>
               <TableCell>
                 {(() => {
-                  // CRS 룰 ID를 기반으로 실제 공격 유형 분석
-                  const ruleIds = extractRuleIdsFromMessage(log.message || '');
-                  const attackType = ruleIds.length > 0 
-                    ? getMostSevereAttackType(ruleIds)
-                    : { category: log.attack_type || 'Unknown', color: '#636e72', icon: '❓' };
+                  // 개선된 공격 유형 분석: 패턴 매칭 + Anomaly Score
+                  const message = log.message || '';
+                  const ruleIds = extractRuleIdsFromMessage(message);
+                  const anomalyScore = extractAnomalyScore(message);
+                  
+                  let attackType;
+                  
+                  if (ruleIds.length > 0 && ruleIds[0] !== 949110) {
+                    // 구체적인 CRS 룰 ID가 있으면 사용
+                    attackType = getMostSevereAttackType(ruleIds);
+                  } else if (anomalyScore > 0) {
+                    // Anomaly Score 기반 패턴 매칭 분석
+                    attackType = getAttackTypeFromAnomalyScore(message, anomalyScore);
+                  } else {
+                    // 기본값
+                    attackType = { category: log.attack_type || 'Unknown', color: '#636e72', icon: '❓' };
+                  }
                   
                   return (
                     <Chip

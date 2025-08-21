@@ -276,6 +276,120 @@ export function extractRuleIdsFromMessage(message: string): number[] {
 }
 
 /**
+ * Anomaly Score를 기반으로 공격 유형 추정
+ */
+export function getAttackTypeFromAnomalyScore(message: string, score: number): AttackTypeInfo {
+  // ModSecurity 로그에서 요청 정보 추출
+  const sqlPatterns = [
+    /union.*select/i, /or.*1.*=.*1/i, /and.*1.*=.*1/i, 
+    /select.*from/i, /insert.*into/i, /update.*set/i, /delete.*from/i,
+    /drop.*table/i, /alter.*table/i, /exec.*sp_/i
+  ];
+  
+  const xssPatterns = [
+    /<script/i, /javascript:/i, /onerror/i, /onload/i, /onclick/i,
+    /alert\(/i, /document\.cookie/i, /eval\(/i, /<iframe/i, /<object/i
+  ];
+  
+  const pathTraversalPatterns = [
+    /\.\.\//i, /\.\.%2f/i, /etc%2fpasswd/i, /windows%2fsystem32/i,
+    /boot\.ini/i, /etc\/passwd/i, /windows\/system32/i
+  ];
+  
+  const scannerPatterns = [
+    /nikto/i, /nmap/i, /sqlmap/i, /dirb/i, /gobuster/i, /masscan/i,
+    /acunetix/i, /nessus/i, /openvas/i, /w3af/i, /skipfish/i
+  ];
+  
+  // User-Agent에서 스캐너 탐지
+  if (scannerPatterns.some(pattern => pattern.test(message))) {
+    return {
+      category: 'Scanner Detection',
+      severity: 'LOW',
+      description: 'Security scanner or automated tool detected',
+      color: '#74b9ff',
+      icon: '🤖'
+    };
+  }
+  
+  // URL이나 파라미터에서 공격 패턴 탐지
+  if (sqlPatterns.some(pattern => pattern.test(message))) {
+    return {
+      category: 'SQL Injection',
+      severity: 'HIGH',
+      description: 'SQL injection attack detected',
+      color: '#ff4757',
+      icon: '💉'
+    };
+  }
+  
+  if (xssPatterns.some(pattern => pattern.test(message))) {
+    return {
+      category: 'XSS (Cross-Site Scripting)',
+      severity: 'HIGH',
+      description: 'Cross-site scripting attack detected',
+      color: '#ff6b35',
+      icon: '🔗'
+    };
+  }
+  
+  if (pathTraversalPatterns.some(pattern => pattern.test(message))) {
+    return {
+      category: 'Path Traversal',
+      severity: 'MEDIUM',
+      description: 'Path traversal attack detected',
+      color: '#ffa502',
+      icon: '📁'
+    };
+  }
+  
+  // Anomaly Score 기반 추정
+  if (score >= 20) {
+    return {
+      category: 'Critical Attack',
+      severity: 'HIGH',
+      description: 'High-severity attack pattern detected',
+      color: '#e55039',
+      icon: '🚨'
+    };
+  } else if (score >= 10) {
+    return {
+      category: 'XSS (Cross-Site Scripting)',
+      severity: 'HIGH',
+      description: 'Possible XSS attack (medium-high score)',
+      color: '#ff6b35',
+      icon: '🔗'
+    };
+  } else if (score >= 5) {
+    return {
+      category: 'SQL Injection',
+      severity: 'MEDIUM',
+      description: 'Possible SQL injection (medium score)',
+      color: '#ff4757',
+      icon: '💉'
+    };
+  }
+  
+  // 기본값
+  return {
+    category: 'Generic Attack',
+    severity: 'MEDIUM',
+    description: `Anomaly detected (Score: ${score})`,
+    color: '#a29bfe',
+    icon: '⚠️'
+  };
+}
+
+/**
+ * ModSecurity 로그에서 Anomaly Score 추출
+ */
+export function extractAnomalyScore(message: string): number {
+  const scorePattern = /Total Score:\s*(\d+)/i;
+  const match = message.match(scorePattern);
+  return match ? parseInt(match[1]) : 0;
+}
+
+/**
  * 여러 룰 ID에서 가장 심각한 공격 유형 반환
  */
 export function getMostSevereAttackType(ruleIds: number[]): AttackTypeInfo {
@@ -293,17 +407,29 @@ export function getMostSevereAttackType(ruleIds: number[]): AttackTypeInfo {
 }
 
 /**
- * 공격 유형별 통계 집계
+ * 공격 유형별 통계 집계 (개선된 분석 포함)
  */
 export function aggregateAttackStats(logs: any[]): Record<string, number> {
   const stats: Record<string, number> = {};
   
   logs.forEach(log => {
     if (log.message) {
-      const ruleIds = extractRuleIdsFromMessage(log.message);
-      const attackType = ruleIds.length > 0 
-        ? getMostSevereAttackType(ruleIds)
-        : getAttackTypeFromRuleId(0);
+      const message = log.message;
+      const ruleIds = extractRuleIdsFromMessage(message);
+      const anomalyScore = extractAnomalyScore(message);
+      
+      let attackType;
+      
+      if (ruleIds.length > 0 && ruleIds[0] !== 949110) {
+        // 구체적인 CRS 룰 ID가 있으면 사용
+        attackType = getMostSevereAttackType(ruleIds);
+      } else if (anomalyScore > 0) {
+        // Anomaly Score 기반 패턴 매칭 분석
+        attackType = getAttackTypeFromAnomalyScore(message, anomalyScore);
+      } else {
+        // 기본값
+        attackType = getAttackTypeFromRuleId(0);
+      }
       
       stats[attackType.category] = (stats[attackType.category] || 0) + 1;
     }
