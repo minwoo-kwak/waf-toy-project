@@ -88,27 +88,3 @@ spec:
             name: waf-frontend-service
             port:
               number: 80
-  - host: lucky-rabbits-end.loca.lt
-    http:
-      paths:
-      - path: /api
-        pathType: Prefix
-        backend:
-          service:
-            name: waf-backend-service
-            port:
-              number: 8080
-      - path: /auth
-        pathType: Prefix
-        backend:
-          service:
-            name: waf-frontend-service
-            port:
-              number: 80
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: waf-frontend-service
-            port:
-              number: 80

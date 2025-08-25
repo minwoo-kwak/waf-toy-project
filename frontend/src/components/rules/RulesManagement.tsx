@@ -32,10 +32,87 @@ import {
   Rule as RuleIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
+  ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 import { rulesAPI } from '../../services/api';
 import { CustomRule, CustomRuleRequest } from '../../types/waf';
 import { formatDistanceToNow } from 'date-fns';
+
+// Rule templates for beginners
+const RULE_TEMPLATES = [
+  {
+    name: '🛡️ SQL Injection 차단',
+    description: 'SQL 인젝션 공격을 감지하고 차단합니다',
+    rule_text: 'SecRule ARGS "@detectSQLi" "id:2001,phase:2,block,msg:\'SQL Injection Attack Detected\',severity:HIGH"',
+    severity: 'HIGH' as const,
+  },
+  {
+    name: '🚫 XSS 공격 차단',
+    description: 'Cross-Site Scripting 공격을 감지하고 차단합니다',
+    rule_text: 'SecRule ARGS "@detectXSS" "id:2002,phase:2,block,msg:\'XSS Attack Detected\',severity:HIGH"',
+    severity: 'HIGH' as const,
+  },
+  {
+    name: '🔐 관리자 페이지 차단',
+    description: '/admin 경로 접근을 차단합니다',
+    rule_text: 'SecRule REQUEST_URI "@beginsWith /admin" "id:2003,phase:1,block,msg:\'Admin path access blocked\',severity:MEDIUM"',
+    severity: 'MEDIUM' as const,
+  },
+  {
+    name: '📁 위험한 파일 업로드 차단',
+    description: '.php, .jsp 등 위험한 파일 업로드를 차단합니다',
+    rule_text: 'SecRule FILES_NAMES "@rx \\.(php|jsp|asp|exe)$" "id:2004,phase:2,block,msg:\'Dangerous file upload blocked\',severity:HIGH"',
+    severity: 'HIGH' as const,
+  },
+  {
+    name: '🔍 스캐닝 도구 차단',
+    description: 'sqlmap, nikto 등 스캐닝 도구를 차단합니다',
+    rule_text: 'SecRule REQUEST_HEADERS:User-Agent "@rx (sqlmap|nikto|nmap|dirb|gobuster)" "id:2005,phase:1,block,msg:\'Scanning tool blocked\',severity:MEDIUM"',
+    severity: 'MEDIUM' as const,
+  },
+  {
+    name: '⚡ 빠른 요청 제한 (Rate Limiting)',
+    description: '같은 IP에서 10초에 20회 이상 요청시 차단',
+    rule_text: 'SecRule IP:bf_counter "@gt 20" "id:2006,phase:1,block,msg:\'Rate limit exceeded\',severity:MEDIUM,expirevar:ip.bf_counter=10"',
+    severity: 'MEDIUM' as const,
+  },
+  {
+    name: '🕷️ 봇 트래픽 탐지',
+    description: '의심스러운 봇 패턴을 감지하고 로깅합니다',
+    rule_text: 'SecRule REQUEST_HEADERS:User-Agent "@rx (bot|crawl|spider|scraper)" "id:2007,phase:1,log,msg:\'Bot traffic detected\',severity:LOW"',
+    severity: 'LOW' as const,
+  },
+  {
+    name: '💾 데이터베이스 파일 보호',
+    description: '.db, .sql, .backup 파일 접근을 차단합니다',
+    rule_text: 'SecRule REQUEST_URI "@rx \\.(db|sql|backup|bak|dump)$" "id:2008,phase:1,block,msg:\'Database file access blocked\',severity:HIGH"',
+    severity: 'HIGH' as const,
+  },
+  {
+    name: '🔑 민감한 디렉토리 보호',
+    description: '/.git, /.env, /config 등 민감한 디렉토리 차단',
+    rule_text: 'SecRule REQUEST_URI "@rx /\\.(git|env|svn|config|htaccess)" "id:2009,phase:1,block,msg:\'Sensitive directory access blocked\',severity:HIGH"',
+    severity: 'HIGH' as const,
+  },
+  {
+    name: '🌏 특정 국가 IP 차단',
+    description: '특정 지역의 IP 접근을 차단합니다 (예시: 중국)',
+    rule_text: 'SecRule REMOTE_ADDR "@geoLookup" "id:2010,phase:1,block,msg:\'Geo-blocked IP access\',severity:MEDIUM,chain" SecRule GEO:COUNTRY_CODE "@streq CN"',
+    severity: 'MEDIUM' as const,
+  },
+  {
+    name: '📜 Log4j 취약점 차단',
+    description: 'Log4Shell (CVE-2021-44228) 공격 패턴 차단',
+    rule_text: 'SecRule ARGS "@rx jndi:(ldap|rmi|dns)" "id:2011,phase:2,block,msg:\'Log4j exploit attempt blocked\',severity:CRITICAL"',
+    severity: 'CRITICAL' as const,
+  },
+  {
+    name: '🚨 명령어 인젝션 차단',
+    description: '시스템 명령어 실행 시도를 차단합니다',
+    rule_text: 'SecRule ARGS "@rx (;|\\||&&|\\$\\(|`)" "id:2012,phase:2,block,msg:\'Command injection attempt blocked\',severity:HIGH"',
+    severity: 'HIGH' as const,
+  },
+];
 
 const RulesManagement: React.FC = () => {
   const [rules, setRules] = useState<CustomRule[]>([]);
@@ -123,6 +200,16 @@ const RulesManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUseTemplate = (template: typeof RULE_TEMPLATES[0]) => {
+    setFormData({
+      name: template.name,
+      description: template.description,
+      rule_text: template.rule_text,
+      enabled: true,
+      severity: template.severity,
+    });
   };
 
   const handleTestRule = async (ruleId: string) => {
@@ -351,11 +438,25 @@ const RulesManagement: React.FC = () => {
             />
             
             <Alert severity="info" sx={{ mt: 2 }}>
-              <Typography variant="body2" component="div">
-                <strong>ModSecurity Rule Examples:</strong>
-                <br />• Block SQL Injection: <code>SecRule ARGS "@detectSQLi" "id:2001,phase:2,block,msg:'Custom SQL Injection',severity:HIGH"</code>
-                <br />• Block XSS: <code>SecRule ARGS "@detectXSS" "id:2002,phase:2,block,msg:'Custom XSS Attack',severity:HIGH"</code>
-                <br />• Block specific path: <code>SecRule REQUEST_URI "@beginsWith /admin" "id:2003,phase:1,block,msg:'Admin path blocked',severity:MEDIUM"</code>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 2 }}>
+                🚀 빠른 시작: 아래 템플릿을 클릭해서 바로 사용해보세요!
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                {RULE_TEMPLATES.map((template, index) => (
+                  <Button
+                    key={index}
+                    variant="outlined"
+                    size="small"
+                    startIcon={<CopyIcon />}
+                    onClick={() => handleUseTemplate(template)}
+                    sx={{ textTransform: 'none', fontSize: '0.8rem' }}
+                  >
+                    {template.name}
+                  </Button>
+                ))}
+              </Box>
+              <Typography variant="caption" color="textSecondary">
+                💡 템플릿을 클릭하면 자동으로 폼이 채워집니다. 필요에 따라 수정해서 사용하세요!
               </Typography>
             </Alert>
           </Box>

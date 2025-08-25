@@ -233,16 +233,25 @@ func (s *RuleService) updateConfigMap() error {
 		return nil
 	}
 	
+	s.log.Info("Starting ConfigMap and Ingress update process")
+	
 	// 1. ConfigMap 업데이트
+	s.log.Info("Updating rules ConfigMap...")
 	if err := s.updateRulesConfigMap(); err != nil {
 		s.log.WithError(err).Error("Failed to update rules ConfigMap")
+	} else {
+		s.log.Info("ConfigMap updated successfully")
 	}
 	
 	// 2. Ingress annotation 업데이트
+	s.log.Info("Updating Ingress annotation...")
 	if err := s.updateIngressAnnotation(); err != nil {
 		s.log.WithError(err).Error("Failed to update Ingress annotation")
+	} else {
+		s.log.Info("Ingress annotation updated successfully")
 	}
 	
+	s.log.Info("ConfigMap and Ingress update process completed")
 	return nil
 }
 
@@ -301,13 +310,8 @@ SecAuditLogParts ABIJDEFHZ
 SecAuditLogType Serial
 SecAuditLog /var/log/nginx/modsec_audit.log
 
-# Allow OAuth callback - disable some rules for auth paths
-SecRule REQUEST_URI "^/auth/callback" \
-  "id:1000,\
-  phase:1,\
-  pass,\
-  nolog,\
-  ctl:ruleEngine=Off"
+# Allow OAuth callback
+SecRule REQUEST_URI "^/auth/callback" "id:1000,phase:1,pass,nolog,ctl:ruleEngine=Off"
 
 # Custom Rules`
 	
@@ -340,23 +344,12 @@ func (s *RuleService) loadExistingRules() {
 	// 여기서는 메모리에 샘플 룰들을 추가
 	sampleRules := []*dto.CustomRule{
 		{
-			ID:          "rule_001",
-			Name:        "Block Common SQL Injection Patterns",
-			Description: "Blocks common SQL injection attack patterns",
-			RuleText:    `SecRule ARGS "@detectSQLi" "id:1001,phase:2,block,msg:'SQL Injection Attack',severity:HIGH"`,
+			ID:          "rule_003",
+			Name:        "Block Admin Page Access",
+			Description: "Blocks access to admin pages for testing",
+			RuleText:    `SecRule REQUEST_URI "/admin" "id:1003,phase:1,block,msg:Admin-Page-Access-Blocked"`,
 			Enabled:     true,
-			Severity:    "HIGH",
-			UserID:      "system",
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
-		},
-		{
-			ID:          "rule_002",
-			Name:        "Block XSS Attempts",
-			Description: "Blocks cross-site scripting attacks",
-			RuleText:    `SecRule ARGS "@detectXSS" "id:1002,phase:2,block,msg:'XSS Attack',severity:HIGH"`,
-			Enabled:     true,
-			Severity:    "HIGH",
+			Severity:    "MEDIUM",
 			UserID:      "system",
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
@@ -368,6 +361,13 @@ func (s *RuleService) loadExistingRules() {
 	}
 	
 	s.log.WithField("count", len(sampleRules)).Info("Loaded existing rules")
+	
+	// 로드된 룰들을 Ingress에 적용
+	if err := s.updateConfigMap(); err != nil {
+		s.log.WithError(err).Error("Failed to apply existing rules to ConfigMap and Ingress")
+	} else {
+		s.log.Info("Existing rules applied to ConfigMap and Ingress successfully")
+	}
 }
 
 func (s *RuleService) ruleToResponse(rule *dto.CustomRule) *dto.CustomRuleResponse {

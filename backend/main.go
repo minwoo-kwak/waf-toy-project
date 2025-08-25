@@ -201,11 +201,23 @@ func corsMiddleware(corsOrigin string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
 		
-		// Allow specific origin or all origins if corsOrigin is "*"
-		if corsOrigin == "*" || origin == corsOrigin {
+		// Allow all origins if corsOrigin is "*"
+		if corsOrigin == "*" {
+			c.Header("Access-Control-Allow-Origin", "*")
+		} else if origin == corsOrigin {
 			c.Header("Access-Control-Allow-Origin", origin)
-		} else if corsOrigin != "*" {
-			c.Header("Access-Control-Allow-Origin", corsOrigin)
+		} else {
+			// For development, also allow localhost variations
+			allowedOrigins := []string{corsOrigin, "http://localhost", "http://localhost:3000", "http://127.0.0.1"}
+			for _, allowedOrigin := range allowedOrigins {
+				if origin == allowedOrigin {
+					c.Header("Access-Control-Allow-Origin", origin)
+					break
+				}
+			}
+			if c.GetHeader("Access-Control-Allow-Origin") == "" {
+				c.Header("Access-Control-Allow-Origin", corsOrigin)
+			}
 		}
 		
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")

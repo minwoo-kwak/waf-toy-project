@@ -271,7 +271,7 @@ export function getAttackTypeFromRuleId(ruleId: number | string): AttackTypeInfo
  */
 export function extractRuleIdsFromMessage(message: string): number[] {
   const ruleIdPattern = /\[id "(\d+)"\]/g;
-  const matches = [...message.matchAll(ruleIdPattern)];
+  const matches = Array.from(message.matchAll(ruleIdPattern));
   return matches.map(match => parseInt(match[1])).filter(id => !isNaN(id));
 }
 
