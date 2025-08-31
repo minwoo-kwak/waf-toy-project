@@ -10,16 +10,22 @@
 
 ## ✨ 주요 기능
 
-### 🔥 v3.0 새로운 기능들
+### 🔥 v4.0 최신 기능들 (Week 4)
+- **🎯 ConfigMap 기반 하이브리드 커스텀 룰 시스템**: Kubernetes ConfigMap과 Ingress annotation 이중 적용으로 안정성 확보
+- **🔄 실시간 동기화**: ConfigMap ↔ 메모리 상태 자동 동기화로 정확한 룰 관리
+- **🛠️ 룰 문법 검증**: ModSecurity 룰 문법 자동 검증 및 보안 키워드 필터링
+- **🔧 자동 NGINX 재시작**: 룰 변경 시 NGINX Ingress Controller 자동 리로드
+
+### 🎯 v3.0 기존 기능들
 - **🎯 실시간 Live Security Monitor**: WebSocket 기반 실시간 보안 이벤트 스트리밍
-- **🧠 지능형 공격 유형 분류**: SQL Injection, XSS, Command Injection, LFI/RFI 자동 분류
+- **🧠 지능형 공격 유형 분류**: OWASP CRS 매핑 기반 SQL Injection, XSS, Command Injection, LFI/RFI 자동 분류
 - **📊 모던 UI/UX**: 그라디언트 기반 현대적 디자인과 실시간 애니메이션
 - **🎯 상세 공격 정보**: 실제 공격 URL, ModSecurity 룰 ID, 심각도 표시
 
 ### 🛡️ 핵심 보안 기능
 - **실시간 WAF 보호**: ModSecurity 3.x 엔진을 통한 실시간 웹 공격 차단
 - **OWASP CRS 4.x 통합**: 검증된 최신 보안 룰셋으로 OWASP Top 10 공격 방어
-- **커스텀 룰 관리**: 웹 UI를 통한 보안 룰 생성, 수정, 삭제 (CRUD)
+- **프로덕션 레디 커스텀 룰**: 웹 UI를 통한 보안 룰 생성, 수정, 삭제 (CRUD) + ConfigMap 영구 저장
 - **멀티 테넌트**: 사용자별 독립적인 보안 정책 관리
 
 ### 🔐 인증 및 사용자 관리
@@ -106,11 +112,11 @@ npm start      # http://localhost:3000
 
 #### Docker 이미지 빌드
 ```bash
-# 백엔드 이미지 빌드
-docker build -t waf-backend:v3.0.4 ./backend
+# 백엔드 이미지 빌드 (Week 4 최신 버전)
+docker build -t waf-backend:v4.0.1 ./backend
 
 # 프론트엔드 이미지 빌드  
-docker build -t waf-frontend:v3.0.1 ./frontend
+docker build -t waf-frontend:v4.0.0 ./frontend
 
 # 일괄 빌드 스크립트
 ./scripts/build-images.sh
@@ -162,14 +168,60 @@ waf-toy-project/
     └── TROUBLESHOOTING.md          # 문제 해결 가이드
 ```
 
+## 🏗️ 프로덕션 레디 아키텍처 (Week 4 완성)
+
+### 🎯 ConfigMap 기반 하이브리드 커스텀 룰 시스템
+```mermaid
+graph LR
+    A[Web UI] --> B[Go Backend]
+    B --> C[Kubernetes ConfigMap]
+    B --> D[Ingress Annotation]
+    C --> E[ModSecurity Engine]
+    D --> E
+    E --> F[실시간 차단]
+```
+
+**핵심 특징**:
+- ✅ **이중 안전장치**: ConfigMap + Ingress annotation 동시 적용
+- ✅ **실시간 동기화**: ConfigMap ↔ 메모리 상태 자동 동기화
+- ✅ **영구 저장**: 컨테이너 재시작해도 룰 유지
+- ✅ **자동 적용**: NGINX Ingress Controller 자동 리로드
+
+### 🔄 실시간 동기화 메커니즘
+```go
+func (s *RuleService) GetRules(userID string) ([]*dto.CustomRuleResponse, error) {
+    // ConfigMap에서 최신 상태 동기화
+    if err := s.syncFromConfigMap(); err != nil {
+        s.log.WithError(err).Warn("Failed to sync from ConfigMap, using cached data")
+    }
+    // ... 룰 반환
+}
+```
+
 ## 🛡️ 보안 테스트 및 분석
 
 ### 🌐 내장 브라우저 테스트
 대시보드 내에서 바로 보안 테스트를 수행할 수 있습니다:
-- **SQL Injection**: `' OR 1=1--`, `UNION SELECT` 등
+
+#### ✅ 정상 차단되는 공격 패턴
+- **SQL Injection**: `' OR 1=1--`, `UNION SELECT * FROM users` 등
 - **XSS**: `<script>alert('xss')</script>`, `javascript:alert()` 등  
 - **Command Injection**: `; cat /etc/passwd`, `| whoami` 등
 - **Path Traversal**: `../../../etc/passwd`, `..\\windows\\system32` 등
+
+#### 🎯 커스텀 룰 테스트 예시
+```bash
+# Admin 페이지 접근 차단 테스트
+curl -v "http://localhost/admin"
+# Expected: 403 Forbidden
+
+# SQL Injection 차단 테스트  
+curl -v "http://localhost/search?q=' OR 1=1--"
+# Expected: 403 Forbidden (자동 분류: SQL Injection)
+
+# 커스텀 룰 동적 적용 확인
+kubectl get configmap modsecurity-config -n ingress-nginx -o yaml
+```
 
 ### 🔍 Kali Linux 전문 분석
 고급 보안 분석을 위한 도구들:
@@ -206,14 +258,37 @@ curl "http://localhost/search?q=<img+src=x+onerror=alert()>"
 
 ## 🎯 개발 진행 상황
 
-### ✅ v3.0 완료 (2025.8.16)
+### ✅ Week 4 (2025.8.31) - 프로덕션 환경 완성
+- [x] **ConfigMap 기반 하이브리드 커스텀 룰 시스템** - Kubernetes ConfigMap과 Ingress annotation 이중 적용으로 안정성 확보
+- [x] **실시간 동기화 시스템** - ConfigMap ↔ 메모리 상태 자동 동기화로 정확한 룰 관리
+- [x] **커스텀 룰 조회/삭제 개선** - ConfigMap 직접 수정 시에도 정확한 상태 반영
+- [x] **ModSecurity 룰 문법 검증** - nginx-ingress 환경 특화 룰 문법 적용
+- [x] **NGINX Ingress Controller 자동 재시작** - 룰 변경 시 자동 리로드 시스템
+
+### ✅ Week 3 (2025.8.24) - 지능형 분석 시스템
+- [x] **OWASP CRS 룰 매핑 시스템** - CRS 룰 ID 기반 정확한 공격 유형 분류
+- [x] **지능형 공격 유형 분류 완성** - SQL Injection, XSS, Command Injection, Path Traversal 등
+- [x] **커스텀 룰 동적 적용** - 실시간 ModSecurity 룰 적용 및 테스트
+
+### ✅ Week 2 (2025.8.16) - 실시간 모니터링 시스템
 - [x] **실시간 보안 모니터링 시스템** - LiveLogMonitor 컴포넌트 구현
-- [x] **지능형 공격 유형 분류** - OWASP CRS 룰 매핑 + URL 패턴 분석
-- [x] **모던 UI/UX 디자인** - 그라디언트 기반 현대적 디자인 시스템
 - [x] **WebSocket 실시간 통신** - 안정적인 실시간 이벤트 스트리밍
+- [x] **모던 UI/UX 디자인** - 그라디언트 기반 현대적 디자인 시스템
 - [x] **상세 위협 정보 표시** - 공격 URL, 룰 ID, 심각도 정보 제공
 
-### 🚧 진행 중 기능
+### ✅ Week 1 (2025.8.10) - 기본 WAF 시스템
+- [x] **ModSecurity WAF 엔진** - Docker & Kubernetes 기반 배포
+- [x] **OWASP CRS 4.x 통합** - 최신 보안 룰셋 적용
+- [x] **Google OAuth 2.0 인증** - JWT 기반 사용자 인증 시스템
+- [x] **기본 대시보드** - React 기반 웹 인터페이스
+
+### 🛠️ 해결된 주요 문제들 (GitHub Issues)
+- [x] **Issue #7**: Custom ModSecurity rule 적용 문제 → nginx-ingress 특화 문법 적용으로 해결
+- [x] **Issue #8**: ConfigMap Include 경로 문제 → 하이브리드 접근법으로 해결
+- [x] **Issue #6**: ngrok WebSocket 연결 문제 → localhost 환경 최적화로 해결
+
+### 🚧 진행 중 기능 (Week 5+)
+- [ ] **실제 도메인 환경 테스트** - Cloudflare Tunnel 또는 안정적인 외부 접근 방법
 - [ ] **고급 보안 분석 리포트** - PDF 보고서 자동 생성
 - [ ] **AI 기반 이상 탐지** - 머신러닝 기반 위협 패턴 분석
 - [ ] **다중 환경 지원** - AWS, GCP, Azure 클라우드 배포
