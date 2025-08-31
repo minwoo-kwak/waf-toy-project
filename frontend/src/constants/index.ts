@@ -24,7 +24,7 @@ export const API_ENDPOINTS = {
   WAF_STATS: '/api/v1/waf/stats', 
   WAF_DASHBOARD: '/api/v1/waf/dashboard',
   
-  RULES: '/api/v1/rules',
+  RULES: '/api/v1/rules/',
   
   SECURITY_TEST: '/api/v1/security/test',
   SECURITY_TEST_TYPES: '/api/v1/security/test-types',

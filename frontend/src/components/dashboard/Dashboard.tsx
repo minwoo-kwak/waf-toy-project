@@ -263,7 +263,7 @@ const Dashboard: React.FC = () => {
                       Threat Intelligence Dashboard
                     </Typography>
                   </Box>
-                  <AttackChart stats={stats} />
+                  <AttackChart stats={stats} logs={recentLogs} />
                 </Paper>
               </Box>
 

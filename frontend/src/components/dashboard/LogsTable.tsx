@@ -22,6 +22,7 @@ import {
 } from '@mui/icons-material';
 import { WAFLog } from '../../types/waf';
 import { formatDistanceToNow } from 'date-fns';
+import { extractRuleIdsFromMessage, getMostSevereAttackType, getAttackTypeFromAnomalyScore, extractAnomalyScore } from '../../utils/crsMapping';
 
 interface LogsTableProps {
   logs: WAFLog[];
@@ -233,12 +234,44 @@ const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
                 </Typography>
               </TableCell>
               <TableCell>
-                <Chip
-                  label={log.attack_type || 'Unknown'}
-                  size="small"
-                  variant="outlined"
-                  color={log.attack_type ? 'warning' : 'default'}
-                />
+                {(() => {
+                  // 개선된 공격 유형 분석: 패턴 매칭 + Anomaly Score
+                  const message = log.message || '';
+                  const ruleIds = extractRuleIdsFromMessage(message);
+                  const anomalyScore = extractAnomalyScore(message);
+                  
+                  let attackType;
+                  
+                  if (ruleIds.length > 0 && ruleIds[0] !== 949110) {
+                    // 구체적인 CRS 룰 ID가 있으면 사용
+                    attackType = getMostSevereAttackType(ruleIds);
+                  } else if (anomalyScore > 0) {
+                    // Anomaly Score 기반 패턴 매칭 분석
+                    attackType = getAttackTypeFromAnomalyScore(message, anomalyScore);
+                  } else {
+                    // 기본값
+                    attackType = { category: log.attack_type || 'Unknown', color: '#636e72', icon: '❓' };
+                  }
+                  
+                  return (
+                    <Chip
+                      label={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <span>{attackType.icon}</span>
+                          {attackType.category}
+                        </Box>
+                      }
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        bgcolor: attackType.color + '20',
+                        borderColor: attackType.color,
+                        color: attackType.color,
+                        fontWeight: 600
+                      }}
+                    />
+                  );
+                })()}
               </TableCell>
               <TableCell>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

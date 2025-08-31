@@ -15,18 +15,28 @@ metadata:
     nginx.ingress.kubernetes.io/modsecurity-transaction-id: "$request_id"
     nginx.ingress.kubernetes.io/modsecurity-snippet: |
       SecRuleEngine On
-      SecAuditEngine RelevantOnly
+      SecAuditEngine On
       SecAuditLogParts ABIJDEFHZ
       SecAuditLogType Serial
       SecAuditLog /var/log/nginx/modsec_audit.log
       
-      # Allow OAuth callback - disable some rules for auth paths
+      # Enhanced logging - Log all transactions, not just blocked ones
+      SecAuditLogRelevantStatus ".*"
+      
+      # CRS configuration overrides for better logging
+      SecAction "id:900200,phase:1,nolog,pass,setvar:tx.inbound_anomaly_score_threshold=5"
+      SecAction "id:900201,phase:1,nolog,pass,setvar:tx.outbound_anomaly_score_threshold=4"
+      
+      # Allow OAuth callback - disable some rules for auth paths  
       SecRule REQUEST_URI "^/auth/callback" \
         "id:1000,\
         phase:1,\
         pass,\
         nolog,\
         ctl:ruleEngine=Off"
+    # Reference to custom rules ConfigMap
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      # Custom rules will be applied via ConfigMap mount
     
     # Rate limiting
     nginx.ingress.kubernetes.io/rate-limit: "100"

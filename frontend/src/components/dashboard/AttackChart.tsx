@@ -2,9 +2,11 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { WAFStats } from '../../types/waf';
+import { aggregateAttackStats } from '../../utils/crsMapping';
 
 interface AttackChartProps {
   stats: WAFStats | null;
+  logs?: any[];
 }
 
 const ATTACK_TYPE_COLORS = {
@@ -29,8 +31,16 @@ const FALLBACK_COLORS = [
   '#a0e7e5', '#ffeaa7', '#fab1a0', '#fd79a8', '#00b894'
 ];
 
-const AttackChart: React.FC<AttackChartProps> = ({ stats }) => {
-  if (!stats || !stats.attacks_by_type) {
+const AttackChart: React.FC<AttackChartProps> = ({ stats, logs = [] }) => {
+  // CRS 매핑을 통한 정확한 공격 통계 생성
+  const crsBasedStats = aggregateAttackStats(logs);
+  
+  // CRS 기반 통계와 기존 통계 중 데이터가 있는 것을 우선 사용
+  const attackTypeData = Object.keys(crsBasedStats).length > 0 
+    ? crsBasedStats 
+    : (stats?.attacks_by_type || {});
+
+  if (Object.keys(attackTypeData).length === 0) {
     return (
       <Box
         sx={{
@@ -47,7 +57,7 @@ const AttackChart: React.FC<AttackChartProps> = ({ stats }) => {
     );
   }
 
-  const attackTypes = Object.entries(stats.attacks_by_type);
+  const attackTypes = Object.entries(attackTypeData);
   
   if (attackTypes.length === 0) {
     return (

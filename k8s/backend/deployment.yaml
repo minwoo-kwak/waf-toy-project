@@ -17,7 +17,7 @@ spec:
       serviceAccountName: waf-backend-sa
       containers:
       - name: waf-backend
-        image: waf-backend:v3.0.4
+        image: waf-backend:v3.8.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
