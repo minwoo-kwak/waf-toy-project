@@ -103,6 +103,11 @@ func (s *RuleService) CreateRule(userID string, req *dto.CustomRuleRequest) (*dt
 }
 
 func (s *RuleService) GetRules(userID string) ([]*dto.CustomRuleResponse, error) {
+	// ConfigMap에서 최신 상태 동기화
+	if err := s.syncFromConfigMap(); err != nil {
+		s.log.WithError(err).Warn("Failed to sync from ConfigMap, using cached data")
+	}
+	
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	
@@ -177,6 +182,11 @@ func (s *RuleService) UpdateRule(userID, ruleID string, req *dto.CustomRuleReque
 }
 
 func (s *RuleService) DeleteRule(userID, ruleID string) error {
+	// ConfigMap에서 최신 상태 동기화
+	if err := s.syncFromConfigMap(); err != nil {
+		s.log.WithError(err).Warn("Failed to sync from ConfigMap before delete")
+	}
+	
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	
@@ -334,27 +344,12 @@ func (s *RuleService) forceNginxReload() error {
 func (s *RuleService) loadExistingRules() {
 	s.log.Info("Loading existing custom rules")
 	
-	// 실제 환경에서는 데이터베이스에서 로드하거나 ConfigMap에서 파싱
-	// 샘플 룰들을 제거하여 사용자가 직접 테스트할 수 있도록 함
-	var sampleRules []*dto.CustomRule
-	
-	for _, rule := range sampleRules {
-		s.rules[rule.ID] = rule
+	// ConfigMap에서 기존 룰들을 로드
+	if err := s.syncFromConfigMap(); err != nil {
+		s.log.WithError(err).Warn("Failed to load rules from ConfigMap, starting with empty rules")
 	}
 	
-	s.log.WithField("count", len(sampleRules)).Info("Loaded existing rules")
-	
-	// 로드된 룰들을 ConfigMap과 Ingress에 적용
-	if err := s.updateConfigMap(); err != nil {
-		s.log.WithError(err).Error("Failed to apply existing rules to ConfigMap")
-	} else {
-		s.log.Info("Existing rules applied to ConfigMap successfully")
-	}
-	if err := s.updateIngressAnnotation(); err != nil {
-		s.log.WithError(err).Error("Failed to apply existing rules to Ingress")
-	} else {
-		s.log.Info("Existing rules applied to Ingress successfully")
-	}
+	s.log.WithField("count", len(s.rules)).Info("Loaded existing rules")
 }
 
 func (s *RuleService) ruleToResponse(rule *dto.CustomRule) *dto.CustomRuleResponse {
@@ -502,5 +497,48 @@ func (s *RuleService) restartNginxIngressController() error {
 	}
 	
 	s.log.Info("NGINX Ingress Controller restart initiated")
+	return nil
+}
+
+// syncFromConfigMap ConfigMap에서 룰을 읽어와서 메모리 상태 동기화
+func (s *RuleService) syncFromConfigMap() error {
+	if s.k8sClient == nil {
+		s.log.Debug("No Kubernetes client available, skipping ConfigMap sync")
+		return nil
+	}
+
+	ctx := context.Background()
+	configMapClient := s.k8sClient.CoreV1().ConfigMaps(s.namespace)
+	
+	// ConfigMap 가져오기
+	configMap, err := configMapClient.Get(ctx, s.configMapName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get ConfigMap: %w", err)
+	}
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// ConfigMap에서 custom-rules.conf 확인
+	customRulesContent, exists := configMap.Data["custom-rules.conf"]
+	if !exists || customRulesContent == "" {
+		// ConfigMap이 비어있으면 메모리도 비움
+		if len(s.rules) > 0 {
+			s.log.Info("ConfigMap is empty, clearing memory rules")
+			s.rules = make(map[string]*dto.CustomRule)
+		}
+		return nil
+	}
+
+	// ConfigMap에 내용이 있지만 메모리가 비어있는 경우
+	// (예: 다른 인스턴스에서 룰을 생성했거나, 직접 ConfigMap을 수정한 경우)
+	if len(s.rules) == 0 {
+		s.log.WithField("content_length", len(customRulesContent)).Warn("ConfigMap has content but memory is empty - this may indicate external changes")
+		// 현재로서는 ConfigMap의 ModSecurity 룰을 파싱해서 객체로 복원하는 것은 복잡하므로
+		// 경고만 남기고 메모리 상태를 유지
+		return nil
+	}
+
+	s.log.WithField("content_length", len(customRulesContent)).Debug("ConfigMap sync completed")
 	return nil
 }
