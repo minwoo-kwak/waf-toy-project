@@ -85,10 +85,12 @@ func (s *RuleService) CreateRule(userID string, req *dto.CustomRuleRequest) (*dt
 	
 	s.rules[rule.ID] = rule
 	
-	// Kubernetes ConfigMap 업데이트
+	// ConfigMap과 Ingress annotation 업데이트 (즉시 적용)
 	if err := s.updateConfigMap(); err != nil {
 		s.log.WithError(err).Error("Failed to update ConfigMap")
-		// ConfigMap 업데이트 실패해도 메모리에는 저장
+	}
+	if err := s.updateIngressAnnotation(); err != nil {
+		s.log.WithError(err).Error("Failed to update Ingress annotation")
 	}
 	
 	s.log.WithFields(logrus.Fields{
@@ -157,9 +159,12 @@ func (s *RuleService) UpdateRule(userID, ruleID string, req *dto.CustomRuleReque
 	rule.Severity = req.Severity
 	rule.UpdatedAt = time.Now()
 	
-	// Kubernetes ConfigMap 업데이트
+	// ConfigMap과 Ingress annotation 업데이트 (즉시 적용)
 	if err := s.updateConfigMap(); err != nil {
 		s.log.WithError(err).Error("Failed to update ConfigMap")
+	}
+	if err := s.updateIngressAnnotation(); err != nil {
+		s.log.WithError(err).Error("Failed to update Ingress annotation")
 	}
 	
 	s.log.WithFields(logrus.Fields{
@@ -186,9 +191,12 @@ func (s *RuleService) DeleteRule(userID, ruleID string) error {
 	
 	delete(s.rules, ruleID)
 	
-	// Kubernetes ConfigMap 업데이트
+	// ConfigMap과 Ingress annotation 업데이트 (즉시 적용)
 	if err := s.updateConfigMap(); err != nil {
 		s.log.WithError(err).Error("Failed to update ConfigMap")
+	}
+	if err := s.updateIngressAnnotation(); err != nil {
+		s.log.WithError(err).Error("Failed to update Ingress annotation")
 	}
 	
 	s.log.WithFields(logrus.Fields{
@@ -227,69 +235,14 @@ func (s *RuleService) validateRule(ruleText string) error {
 	return nil
 }
 
-func (s *RuleService) updateConfigMap() error {
-	if s.k8sClient == nil {
-		s.log.Debug("No Kubernetes client available, skipping ConfigMap update")
-		return nil
-	}
-	
-	s.log.Info("Starting ConfigMap and Ingress update process")
-	
-	// 1. ConfigMap 업데이트
-	s.log.Info("Updating rules ConfigMap...")
-	if err := s.updateRulesConfigMap(); err != nil {
-		s.log.WithError(err).Error("Failed to update rules ConfigMap")
-	} else {
-		s.log.Info("ConfigMap updated successfully")
-	}
-	
-	// 2. Ingress annotation 업데이트
-	s.log.Info("Updating Ingress annotation...")
-	if err := s.updateIngressAnnotation(); err != nil {
-		s.log.WithError(err).Error("Failed to update Ingress annotation")
-	} else {
-		s.log.Info("Ingress annotation updated successfully")
-	}
-	
-	s.log.Info("ConfigMap and Ingress update process completed")
-	return nil
-}
 
-func (s *RuleService) updateRulesConfigMap() error {
-	ctx := context.Background()
-	configMapsClient := s.k8sClient.CoreV1().ConfigMaps(s.namespace)
-	
-	// 현재 ConfigMap 가져오기
-	configMap, err := configMapsClient.Get(ctx, s.configMapName, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get ConfigMap: %w", err)
-	}
-	
-	if configMap.Data == nil {
-		configMap.Data = make(map[string]string)
-	}
-	
-	// 커스텀 룰들을 생성
-	var customRules string
-	for _, rule := range s.rules {
-		if rule.Enabled {
-			customRules += fmt.Sprintf("# %s\n# %s\n%s\n\n", rule.Name, rule.Description, rule.RuleText)
-		}
-	}
-	
-	// ConfigMap 업데이트
-	configMap.Data["custom-rules.conf"] = customRules
-	
-	_, err = configMapsClient.Update(ctx, configMap, metav1.UpdateOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to update ConfigMap: %w", err)
-	}
-	
-	s.log.Info("ConfigMap updated successfully")
-	return nil
-}
 
 func (s *RuleService) updateIngressAnnotation() error {
+	if s.k8sClient == nil {
+		s.log.Debug("No Kubernetes client available, skipping Ingress annotation update")
+		return nil
+	}
+
 	ctx := context.Background()
 	ingressClient := s.k8sClient.NetworkingV1().Ingresses(s.namespace)
 	
@@ -305,27 +258,30 @@ func (s *RuleService) updateIngressAnnotation() error {
 	
 	// 기본 ModSecurity 설정
 	baseConfig := `SecRuleEngine On
-SecAuditEngine RelevantOnly
+SecAuditEngine On  
 SecAuditLogParts ABIJDEFHZ
 SecAuditLogType Serial
 SecAuditLog /var/log/nginx/modsec_audit.log
 
 # Allow OAuth callback
-SecRule REQUEST_URI "^/auth/callback" "id:1000,phase:1,pass,nolog,ctl:ruleEngine=Off"
+SecRule REQUEST_URI "^/auth/callback" "id:9999,phase:1,pass,nolog,ctl:ruleEngine=Off"
 
-# Custom Rules`
+# Allow API requests (including DELETE)
+SecRule REQUEST_URI "^/api/" "id:9998,phase:1,pass,nolog,ctl:ruleEngine=Off"`
 	
 	// 활성화된 커스텀 룰들 추가
 	var customRulesSnippet string
 	for _, rule := range s.rules {
 		if rule.Enabled {
-			customRulesSnippet += fmt.Sprintf("\n# %s\n# %s\n%s", rule.Name, rule.Description, rule.RuleText)
+			customRulesSnippet += fmt.Sprintf("\n\n# %s\n# %s\n%s", rule.Name, rule.Description, rule.RuleText)
 		}
 	}
 	
 	// ModSecurity snippet 업데이트
 	fullConfig := baseConfig + customRulesSnippet
 	ingress.Annotations["nginx.ingress.kubernetes.io/modsecurity-snippet"] = fullConfig
+	
+	s.log.WithField("config_length", len(fullConfig)).Info("Updating Ingress ModSecurity annotation")
 	
 	// Ingress 업데이트
 	_, err = ingressClient.Update(ctx, ingress, metav1.UpdateOptions{})
@@ -334,6 +290,44 @@ SecRule REQUEST_URI "^/auth/callback" "id:1000,phase:1,pass,nolog,ctl:ruleEngine
 	}
 	
 	s.log.Info("Ingress ModSecurity annotation updated successfully")
+	
+	// Force NGINX Ingress Controller reload by restarting the pod
+	// This is required because ModSecurity rules don't always apply immediately
+	s.log.Info("Forcing NGINX Ingress Controller reload...")
+	if err := s.forceNginxReload(); err != nil {
+		s.log.WithError(err).Warn("Failed to force NGINX reload, rules may not apply immediately")
+	} else {
+		s.log.Info("NGINX Ingress Controller reload initiated successfully")
+	}
+	
+	return nil
+}
+
+func (s *RuleService) forceNginxReload() error {
+	if s.k8sClient == nil {
+		return fmt.Errorf("Kubernetes client not available")
+	}
+	
+	ctx := context.Background()
+	podsClient := s.k8sClient.CoreV1().Pods("ingress-nginx")
+	
+	// Delete NGINX Ingress Controller pods to force reload
+	labelSelector := "app.kubernetes.io/name=ingress-nginx,app.kubernetes.io/component=controller"
+	pods, err := podsClient.List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list NGINX pods: %w", err)
+	}
+	
+	for _, pod := range pods.Items {
+		s.log.WithField("pod", pod.Name).Info("Restarting NGINX Ingress Controller pod")
+		err = podsClient.Delete(ctx, pod.Name, metav1.DeleteOptions{})
+		if err != nil {
+			s.log.WithError(err).Warn("Failed to delete NGINX pod, continuing...")
+		}
+	}
+	
 	return nil
 }
 
@@ -341,20 +335,8 @@ func (s *RuleService) loadExistingRules() {
 	s.log.Info("Loading existing custom rules")
 	
 	// 실제 환경에서는 데이터베이스에서 로드하거나 ConfigMap에서 파싱
-	// 여기서는 메모리에 샘플 룰들을 추가
-	sampleRules := []*dto.CustomRule{
-		{
-			ID:          "rule_003",
-			Name:        "Block Admin Page Access",
-			Description: "Blocks access to admin pages for testing",
-			RuleText:    `SecRule REQUEST_URI "/admin" "id:1003,phase:1,block,msg:Admin-Page-Access-Blocked"`,
-			Enabled:     true,
-			Severity:    "MEDIUM",
-			UserID:      "system",
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
-		},
-	}
+	// 샘플 룰들을 제거하여 사용자가 직접 테스트할 수 있도록 함
+	var sampleRules []*dto.CustomRule
 	
 	for _, rule := range sampleRules {
 		s.rules[rule.ID] = rule
@@ -362,11 +344,16 @@ func (s *RuleService) loadExistingRules() {
 	
 	s.log.WithField("count", len(sampleRules)).Info("Loaded existing rules")
 	
-	// 로드된 룰들을 Ingress에 적용
+	// 로드된 룰들을 ConfigMap과 Ingress에 적용
 	if err := s.updateConfigMap(); err != nil {
-		s.log.WithError(err).Error("Failed to apply existing rules to ConfigMap and Ingress")
+		s.log.WithError(err).Error("Failed to apply existing rules to ConfigMap")
 	} else {
-		s.log.Info("Existing rules applied to ConfigMap and Ingress successfully")
+		s.log.Info("Existing rules applied to ConfigMap successfully")
+	}
+	if err := s.updateIngressAnnotation(); err != nil {
+		s.log.WithError(err).Error("Failed to apply existing rules to Ingress")
+	} else {
+		s.log.Info("Existing rules applied to Ingress successfully")
 	}
 }
 
@@ -385,4 +372,135 @@ func (s *RuleService) ruleToResponse(rule *dto.CustomRule) *dto.CustomRuleRespon
 
 func generateRuleID() string {
 	return fmt.Sprintf("rule_%d", time.Now().UnixNano())
+}
+
+func (s *RuleService) updateConfigMap() error {
+	if s.k8sClient == nil {
+		s.log.Debug("No Kubernetes client available, skipping ConfigMap update")
+		return nil
+	}
+
+	ctx := context.Background()
+	configMapClient := s.k8sClient.CoreV1().ConfigMaps(s.namespace)
+	
+	// ConfigMap 가져오기
+	configMap, err := configMapClient.Get(ctx, s.configMapName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get ConfigMap: %w", err)
+	}
+	
+	if configMap.Data == nil {
+		configMap.Data = make(map[string]string)
+	}
+	
+	// 활성화된 룰들을 custom-rules.conf에 추가
+	var customRulesContent string
+	for _, rule := range s.rules {
+		if rule.Enabled {
+			customRulesContent += fmt.Sprintf("# %s\n# %s\n%s\n\n", rule.Name, rule.Description, rule.RuleText)
+		}
+	}
+	
+	configMap.Data["custom-rules.conf"] = customRulesContent
+	
+	s.log.WithField("rules_count", len(s.rules)).Info("Updating ConfigMap with custom rules")
+	
+	// ConfigMap 업데이트
+	_, err = configMapClient.Update(ctx, configMap, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update ConfigMap: %w", err)
+	}
+	
+	s.log.Info("ConfigMap updated successfully")
+	
+	// ConfigMap 업데이트 후 NGINX Ingress Controller ConfigMap의 modsecurity-snippet도 업데이트
+	s.log.Info("Updating NGINX Ingress Controller ConfigMap...")
+	if err := s.updateNginxConfigMapSnippet(); err != nil {
+		s.log.WithError(err).Warn("Failed to update NGINX ConfigMap snippet")
+		return err
+	}
+	
+	return nil
+}
+
+func (s *RuleService) updateNginxConfigMapSnippet() error {
+	if s.k8sClient == nil {
+		return fmt.Errorf("Kubernetes client not available")
+	}
+
+	ctx := context.Background()
+	configMapClient := s.k8sClient.CoreV1().ConfigMaps("ingress-nginx")
+	
+	// NGINX ConfigMap 가져오기
+	nginxConfigMap, err := configMapClient.Get(ctx, "ingress-nginx-controller", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get NGINX ConfigMap: %w", err)
+	}
+	
+	if nginxConfigMap.Data == nil {
+		nginxConfigMap.Data = make(map[string]string)
+	}
+	
+	// 기본 ModSecurity 설정
+	baseConfig := `SecRuleEngine On
+SecAuditEngine On
+SecAuditLogParts ABIJDEFHZ
+SecAuditLogType Serial
+SecAuditLog /var/log/nginx/modsec_audit.log
+Include /etc/nginx/owasp-modsecurity-crs/nginx-modsecurity.conf
+
+# Custom rules from ConfigMap  
+Include /etc/nginx/modsecurity/custom-rules/custom-rules.conf`
+
+	nginxConfigMap.Data["modsecurity-snippet"] = baseConfig
+	nginxConfigMap.Data["enable-modsecurity"] = "true"
+	nginxConfigMap.Data["enable-owasp-modsecurity-crs"] = "false"
+	
+	s.log.Info("Updating NGINX ConfigMap modsecurity-snippet")
+	
+	// NGINX ConfigMap 업데이트
+	_, err = configMapClient.Update(ctx, nginxConfigMap, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update NGINX ConfigMap: %w", err)
+	}
+	
+	s.log.Info("NGINX ConfigMap updated successfully")
+	
+	// NGINX Ingress Controller 재시작
+	s.log.Info("Restarting NGINX Ingress Controller...")
+	if err := s.restartNginxIngressController(); err != nil {
+		s.log.WithError(err).Warn("Failed to restart NGINX Ingress Controller")
+		return err
+	}
+	
+	return nil
+}
+
+func (s *RuleService) restartNginxIngressController() error {
+	if s.k8sClient == nil {
+		return fmt.Errorf("Kubernetes client not available")
+	}
+	
+	ctx := context.Background()
+	deploymentClient := s.k8sClient.AppsV1().Deployments("ingress-nginx")
+	
+	// NGINX Ingress Controller 재시작
+	deployment, err := deploymentClient.Get(ctx, "ingress-nginx-controller", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get NGINX deployment: %w", err)
+	}
+	
+	// 재시작을 위해 annotation 추가
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = make(map[string]string)
+	}
+	deployment.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+	
+	_, err = deploymentClient.Update(ctx, deployment, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to restart NGINX deployment: %w", err)
+	}
+	
+	s.log.Info("NGINX Ingress Controller restart initiated")
+	return nil
 }
