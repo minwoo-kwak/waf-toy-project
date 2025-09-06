@@ -232,13 +232,31 @@ curl "http://localhost/search?q=<img+src=x+onerror=alert()>"
 
 ## 🎯 개발 진행 상황
 
-### ✅ Week 5 완료 (2025.9.6)
+### 🚧 Week 5 진행 중 (2025.9.6) - **v5.0.4 (Backend) / v3.5.2 (Frontend)**
+
+**✅ 완료된 기능:**
 - [x] **SQLite 데이터베이스 통합** - GORM ORM을 통한 영구 데이터 저장
 - [x] **Repository 패턴 적용** - Clean Architecture로 코드 구조 개선
 - [x] **K8s 서비스 분리** - ConfigMap/Ingress 관리 로직 분리
+- [x] **커스텀 룰 CRUD 완성** - 생성(Create), 조회(Read), 수정(Update), 삭제(Delete) 모든 기능
 - [x] **실시간 ConfigMap 동기화** - 룰 CRUD 시 즉시 ModSecurity 반영
 - [x] **프론트엔드 API 라우팅 수정** - CORS 문제 해결 및 Ingress 기반 통신
 - [x] **서비스 시작 시 자동 동기화** - 기존 DB 룰을 ConfigMap에 자동 적용
+
+**🔄 현재 배포된 기능 (v5.0.4/v3.5.2):**
+```bash
+# 완전한 커스텀 룰 관리 시스템
+GET    /api/v1/rules        # 룰 목록 조회
+POST   /api/v1/rules        # 새 룰 생성
+PUT    /api/v1/rules/:id    # 룰 수정 ✅
+DELETE /api/v1/rules/:id    # 룰 삭제 ✅
+
+# SQLite 영구 저장소 + K8s ConfigMap 실시간 동기화 완료
+```
+
+**📋 다음 작업 계획:**
+- [ ] **멀티테넌트 시스템 구현** - 조직(Organization) 기반 사용자 격리
+- [ ] **조직별 WAF 정책 관리** - 테넌트별 독립적인 보안 룰 운영
 
 ### ✅ v3.0 완료 (2025.8.16)
 - [x] **실시간 보안 모니터링 시스템** - LiveLogMonitor 컴포넌트 구현
