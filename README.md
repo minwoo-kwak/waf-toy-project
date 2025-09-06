@@ -32,7 +32,8 @@
 ### Backend (Go)
 - **언어**: Go 1.23+
 - **프레임워크**: Gin HTTP Framework
-- **아키텍처**: RESTful API, Clean Architecture, DTO 패턴
+- **아키텍처**: RESTful API, Clean Architecture, Repository 패턴
+- **데이터베이스**: SQLite + GORM ORM
 - **WebSocket**: 실시간 보안 이벤트 스트리밍
 - **인증**: Google OAuth 2.0 + JWT
 
@@ -107,13 +108,31 @@ npm start      # http://localhost:3000
 #### Docker 이미지 빌드
 ```bash
 # 백엔드 이미지 빌드
-docker build -t waf-backend:v3.0.4 ./backend
+docker build -t waf-backend:v5.0.4 ./backend
 
 # 프론트엔드 이미지 빌드  
-docker build -t waf-frontend:v3.0.1 ./frontend
+docker build -t waf-frontend:v3.5.2 ./frontend
 
 # 일괄 빌드 스크립트
 ./scripts/build-images.sh
+```
+
+#### 데이터베이스 관리
+```bash
+# DB 상태 확인
+./scripts/check_db.sh
+
+# DB 관리 도구 (대화형)
+./scripts/db_admin.sh
+
+# 룰 목록 확인
+./scripts/db_admin.sh rules
+
+# SQL 실행
+./scripts/db_admin.sh sql
+
+# DB 백업
+./scripts/db_admin.sh backup
 ```
 
 ## 📁 프로젝트 구조
@@ -123,12 +142,17 @@ waf-toy-project/
 ├── README.md                          # 프로젝트 소개 및 사용법
 ├── backend/                           # Go 백엔드 API 서버
 │   ├── config/                       # 설정 관리
+│   ├── database/                     # 데이터베이스 설정 및 연결
 │   ├── dto/                          # 데이터 전송 객체
 │   ├── handlers/                     # HTTP 핸들러 (Router Layer)
+│   ├── models/                       # 데이터 모델 (Entity Layer)
+│   ├── repositories/                 # 데이터 접근 계층 (Repository Pattern)
 │   ├── services/                     # 비즈니스 로직 (Service Layer)
+│   │   ├── k8s/                     # Kubernetes 연동 서비스
 │   │   ├── waf_service.go           # WAF 로그 분석 및 공격 유형 분류
 │   │   ├── websocket_service.go     # 실시간 WebSocket 통신
-│   │   └── auth_service.go          # Google OAuth 인증
+│   │   ├── auth_service.go          # Google OAuth 인증
+│   │   └── rule_service_v2.go       # 커스텀 룰 관리 (SQLite 기반)
 │   ├── utils/                       # 유틸리티 함수
 │   └── main.go                      # 애플리케이션 엔트리 포인트
 ├── frontend/                         # React 프론트엔드
@@ -154,7 +178,9 @@ waf-toy-project/
 ├── scripts/                         # 자동화 스크립트
 │   ├── deploy-k8s.sh               # 전체 시스템 배포
 │   ├── build-images.sh             # Docker 이미지 일괄 빌드
-│   └── cleanup-k8s.sh              # 리소스 정리
+│   ├── cleanup-k8s.sh              # 리소스 정리
+│   ├── check_db.sh                 # SQLite DB 상태 확인
+│   └── db_admin.sh                 # DB 관리 도구
 └── docs/                           # 프로젝트 문서
     ├── CUSTOM_RULE_GUIDE.md        # 커스텀 룰 작성 가이드
     ├── SECURITY_ANALYSIS_GUIDE.md  # Kali Linux 보안 분석 가이드
@@ -205,6 +231,14 @@ curl "http://localhost/search?q=<img+src=x+onerror=alert()>"
 - 🔄 실시간 애니메이션 및 시각적 피드백
 
 ## 🎯 개발 진행 상황
+
+### ✅ Week 5 완료 (2025.9.6)
+- [x] **SQLite 데이터베이스 통합** - GORM ORM을 통한 영구 데이터 저장
+- [x] **Repository 패턴 적용** - Clean Architecture로 코드 구조 개선
+- [x] **K8s 서비스 분리** - ConfigMap/Ingress 관리 로직 분리
+- [x] **실시간 ConfigMap 동기화** - 룰 CRUD 시 즉시 ModSecurity 반영
+- [x] **프론트엔드 API 라우팅 수정** - CORS 문제 해결 및 Ingress 기반 통신
+- [x] **서비스 시작 시 자동 동기화** - 기존 DB 룰을 ConfigMap에 자동 적용
 
 ### ✅ v3.0 완료 (2025.8.16)
 - [x] **실시간 보안 모니터링 시스템** - LiveLogMonitor 컴포넌트 구현
