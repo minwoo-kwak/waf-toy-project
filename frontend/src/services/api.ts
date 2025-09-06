@@ -4,7 +4,7 @@ import { WAFLog, WAFStats, CustomRule, CustomRuleRequest, SecurityTest, Security
 import { ErrorResponse } from '../types/errors';
 import { API_ENDPOINTS, LOCAL_STORAGE_KEYS, DEFAULT_VALUES } from '../constants';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
