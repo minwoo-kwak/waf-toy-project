@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"waf-backend/config"
+	"waf-backend/database"
 	"waf-backend/dto"
 	"waf-backend/handlers"
 	"waf-backend/services"
@@ -28,11 +29,18 @@ func main() {
 	
 	log.Info("Starting WAF SaaS Backend Server v2.0")
 	
+	// Initialize database
+	log.Info("Initializing database...")
+	if err := database.InitDB(log); err != nil {
+		log.WithError(err).Warn("Failed to initialize database, will continue without persistent storage")
+		// Continue without database for development
+	}
+	
 	// Initialize services
 	log.Info("Initializing services...")
 	authService := services.NewAuthService(cfg, log)
 	wafService := services.NewWAFService(log)
-	ruleService := services.NewRuleService(log)
+	ruleService := services.NewRuleServiceV2(log)
 	securityTestService := services.NewSecurityTestService(log)
 	websocketService := services.NewWebSocketService(log, wafService)
 	

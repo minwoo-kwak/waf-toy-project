@@ -10,11 +10,11 @@ import (
 )
 
 type RuleHandler struct {
-	ruleService *services.RuleService
+	ruleService services.RuleService
 	log         *logrus.Logger
 }
 
-func NewRuleHandler(ruleService *services.RuleService, log *logrus.Logger) *RuleHandler {
+func NewRuleHandler(ruleService services.RuleService, log *logrus.Logger) *RuleHandler {
 	return &RuleHandler{
 		ruleService: ruleService,
 		log:         log,

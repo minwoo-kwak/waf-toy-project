@@ -17,7 +17,7 @@ spec:
       serviceAccountName: waf-backend-sa
       containers:
       - name: waf-backend
-        image: waf-backend:v3.8.0
+        image: waf-backend:v5.0.4
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -74,3 +74,10 @@ spec:
           limits:
             cpu: 500m
             memory: 512Mi
+        volumeMounts:
+        - name: waf-data
+          mountPath: /data
+      volumes:
+      - name: waf-data
+        persistentVolumeClaim:
+          claimName: waf-data-pvc
