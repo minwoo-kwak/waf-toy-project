@@ -1,0 +1,58 @@
+# Template for dynamically created proxy ingress
+# This will be used by the backend service to create proxy ingresses
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: PROXY_NAME-ingress
+  namespace: default
+  annotations:
+    # Use nginx ingress controller
+    kubernetes.io/ingress.class: nginx
+
+    # Enable ModSecurity for proxy protection
+    nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+    nginx.ingress.kubernetes.io/enable-owasp-modsecurity-crs: "true"
+
+    # ModSecurity configuration
+    nginx.ingress.kubernetes.io/modsecurity-transaction-id: "$request_id"
+    nginx.ingress.kubernetes.io/modsecurity-snippet: |
+      SecRuleEngine On
+      SecAuditEngine On
+      SecAuditLogParts ABIJDEFHZ
+      SecAuditLogType Serial
+      SecAuditLog /var/log/nginx/modsec_audit.log
+
+      # Enhanced logging
+      SecAuditLogRelevantStatus ".*"
+
+      # CRS configuration
+      SecAction "id:900200,phase:1,nolog,pass,setvar:tx.inbound_anomaly_score_threshold=5"
+      SecAction "id:900201,phase:1,nolog,pass,setvar:tx.outbound_anomaly_score_threshold=4"
+
+      # Include custom rules
+      Include /etc/nginx/modsecurity/custom/custom-rules.conf
+
+    # Proxy configuration for external targets
+    nginx.ingress.kubernetes.io/upstream-vhost: "ORIGIN_HOST"
+    nginx.ingress.kubernetes.io/proxy-ssl-verify: "false"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-WAF-Protected: true";
+      more_set_headers "X-ModSecurity-Transaction-Id: $request_id";
+
+    # Security headers
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+spec:
+  rules:
+  - host: PROXY_DOMAIN
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            # This will be replaced with actual service name or external URL
+            name: BACKEND_SERVICE
+            port:
+              number: BACKEND_PORT

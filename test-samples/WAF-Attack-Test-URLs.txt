@@ -1,0 +1,111 @@
+🛡️ WAF 공격 테스트 URL 샘플
+==========================================
+
+📌 기본 URL: http://dvwatest-n-e-kr-protected.waftest.p-e.kr
+(본인의 프록시 도메인으로 변경하여 사용하세요)
+
+==========================================
+1. 💉 SQL Injection 테스트
+==========================================
+
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/sqli/?id=%27%20OR%20%271%27%3D%271&Submit=Submit
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/sqli/?id=%27%20OR%201%3D1%20--&Submit=Submit
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/sqli/?id=admin%27--&Submit=Submit
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/sqli/?id=%27%20UNION%20SELECT%20null%2C%20user%28%29%2C%20version%28%29%20--&Submit=Submit
+
+Raw Payloads:
+- ' OR '1'='1
+- ' OR 1=1 --
+- admin'--
+- ' UNION SELECT null, user(), version() --
+
+==========================================
+2. 🎭 XSS (Cross-Site Scripting) 테스트
+==========================================
+
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/xss_r/?name=%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/xss_r/?name=%3Cimg%20src%3Dx%20onerror%3Dalert%28%27XSS%27%29%3E
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/xss_r/?name=%3Csvg%20onload%3Dalert%281%29%3E
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/xss_r/?name=javascript%3Aalert%28%27XSS%27%29
+
+Raw Payloads:
+- <script>alert(1)</script>
+- <img src=x onerror=alert('XSS')>
+- <svg onload=alert(1)>
+- javascript:alert('XSS')
+
+==========================================
+3. 💻 Command Injection 테스트
+==========================================
+
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/exec/?ip=127.0.0.1%3B%20ls%20-la&Submit=Submit
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/exec/?ip=127.0.0.1%20%26%26%20cat%20%2Fetc%2Fpasswd&Submit=Submit
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/exec/?ip=127.0.0.1%20%7C%20whoami&Submit=Submit
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/exec/?ip=127.0.0.1%60id%60&Submit=Submit
+
+Raw Payloads:
+- 127.0.0.1; ls -la
+- 127.0.0.1 && cat /etc/passwd
+- 127.0.0.1 | whoami
+- 127.0.0.1`id`
+
+==========================================
+4. 📁 Local File Inclusion (LFI) 테스트
+==========================================
+
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/fi/?page=..%2F..%2F..%2Fetc%2Fpasswd
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/fi/?page=..%5C..%5C..%5C..%5Cwindows%5Csystem32%5Cdrivers%5Cetc%5Chosts
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/fi/?page=....%2F%2F....%2F%2F....%2F%2Fetc%2Fpasswd
+http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/fi/?page=%2Fetc%2Fpasswd%2500
+
+Raw Payloads:
+- ../../../etc/passwd
+- ..\..\..\..\ windows\system32\drivers\etc\hosts
+- ....//....//....//etc/passwd
+- /etc/passwd%00
+
+==========================================
+5. 📤 악성 파일 업로드 테스트
+==========================================
+
+업로드 페이지: http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/upload/
+
+테스트할 파일 확장자:
+- test.php
+- malware.exe
+- script.jsp
+- backdoor.asp
+- shell.phtml
+
+==========================================
+📊 테스트 결과 확인 방법
+==========================================
+
+예상 결과:
+✅ 정상 차단: 403 Forbidden / 406 Not Acceptable / 400 Bad Request
+❌ 차단 실패: 200 OK (WAF 설정 점검 필요)
+
+WAF 로그 확인:
+kubectl logs -l app=nginx-ingress -n ingress-nginx | grep -i "denied\|blocked\|403"
+
+또는 WAF 대시보드에서 실시간 로그 모니터링
+
+==========================================
+⚠️ 주의사항
+==========================================
+
+1. 본인이 소유한 서버에서만 테스트하세요
+2. 무단으로 다른 서버를 공격하는 것은 불법입니다
+3. 테스트 후 반드시 로그를 확인하여 WAF 작동 여부를 검증하세요
+4. 모든 공격이 차단되지 않으면 WAF 규칙을 재검토하세요
+
+==========================================
+🚀 빠른 테스트 방법
+==========================================
+
+브라우저에서 위 URL을 순서대로 접속하거나,
+curl 명령어로 테스트:
+
+curl -i "http://dvwatest-n-e-kr-protected.waftest.p-e.kr/vulnerabilities/sqli/?id=%27%20OR%20%271%27%3D%271&Submit=Submit"
+
+응답 코드 403/406이면 차단 성공! 🎉

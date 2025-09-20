@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dvwa
+  namespace: default
+  labels:
+    app: dvwa
+    tier: vulnerable-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dvwa
+  template:
+    metadata:
+      labels:
+        app: dvwa
+        tier: vulnerable-app
+    spec:
+      containers:
+      - name: dvwa
+        image: vulnerables/web-dvwa:latest
+        ports:
+        - containerPort: 80
+          name: http
+        env:
+        - name: DB_SERVER
+          value: "127.0.0.1"
+        - name: DB_DATABASE
+          value: "dvwa"
+        - name: DB_USERNAME
+          value: "dvwa"
+        - name: DB_PASSWORD
+          value: "p@ssw0rd"
+        - name: SECURITY_LEVEL
+          value: "low"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 60
+          periodSeconds: 30
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dvwa-service
+  namespace: default
+  labels:
+    app: dvwa
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30081
+    protocol: TCP
+    name: http
+  selector:
+    app: dvwa

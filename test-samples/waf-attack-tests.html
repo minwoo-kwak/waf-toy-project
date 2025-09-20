@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAF 공격 테스트 샘플</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .test-section h2 {
+            color: #333;
+            margin-top: 0;
+        }
+        .attack-sample {
+            background-color: #f8f9fa;
+            border-left: 4px solid #dc3545;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .url-example {
+            background-color: #e9ecef;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            word-break: break-all;
+        }
+        .expected {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .dangerous {
+            background-color: #dc3545;
+        }
+        .dangerous:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <h1>🛡️ WAF 공격 테스트 샘플</h1>
+    <p><strong>주의:</strong> 이 테스트는 본인이 소유한 DVWA 서버에서만 실행하세요. 무단으로 다른 서버를 공격하는 것은 불법입니다.</p>
+
+    <div class="test-section">
+        <h2>🎯 테스트 대상 URL 설정</h2>
+        <p>프록시를 통해 보호되는 DVWA URL을 입력하세요:</p>
+        <input type="text" id="baseUrl" placeholder="예: http://dvwatest-n-e-kr-protected.waftest.p-e.kr"
+               value="http://dvwatest-n-e-kr-protected.waftest.p-e.kr">
+        <button onclick="updateUrls()">URL 업데이트</button>
+    </div>
+
+    <div class="test-section">
+        <h2>1. 💉 SQL Injection 테스트</h2>
+        <p>SQL Injection 공격은 데이터베이스 쿼리를 조작하여 무단 데이터 접근을 시도합니다.</p>
+
+        <h3>공격 샘플:</h3>
+        <div class="attack-sample">
+            ' OR '1'='1<br>
+            ' OR 1=1 --<br>
+            admin'--<br>
+            ' UNION SELECT null, user(), version() --<br>
+            1' ORDER BY 3--+
+        </div>
+
+        <h3>테스트 URL:</h3>
+        <div class="url-example" id="sqlUrl">
+            <a href="#" onclick="testSqlInjection()" target="_blank">
+                클릭하여 SQL Injection 테스트 (새 창)
+            </a>
+        </div>
+
+        <div class="expected">
+            <strong>예상 결과:</strong> WAF가 요청을 차단하고 403 Forbidden 또는 406 Not Acceptable 응답을 반환해야 합니다.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. 🎭 Reflected XSS 테스트</h2>
+        <p>Cross-Site Scripting 공격은 악성 스크립트를 웹페이지에 삽입하여 실행시키려 합니다.</p>
+
+        <h3>공격 샘플:</h3>
+        <div class="attack-sample">
+            &lt;script&gt;alert(1)&lt;/script&gt;<br>
+            &lt;img src=x onerror=alert('XSS')&gt;<br>
+            &lt;svg onload=alert(1)&gt;<br>
+            javascript:alert('XSS')<br>
+            &lt;iframe src="javascript:alert('XSS')"&gt;&lt;/iframe&gt;
+        </div>
+
+        <h3>테스트 URL:</h3>
+        <div class="url-example" id="xssUrl">
+            <a href="#" onclick="testXSS()" target="_blank">
+                클릭하여 XSS 테스트 (새 창)
+            </a>
+        </div>
+
+        <div class="expected">
+            <strong>예상 결과:</strong> WAF가 스크립트 태그를 감지하고 요청을 차단해야 합니다.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. 💻 Command Injection 테스트</h2>
+        <p>명령어 삽입 공격은 시스템 명령어를 실행하려고 시도합니다.</p>
+
+        <h3>공격 샘플:</h3>
+        <div class="attack-sample">
+            ; ls -la<br>
+            && cat /etc/passwd<br>
+            | whoami<br>
+            `id`<br>
+            $(uname -a)
+        </div>
+
+        <h3>테스트 URL:</h3>
+        <div class="url-example" id="cmdUrl">
+            <a href="#" onclick="testCommandInjection()" target="_blank">
+                클릭하여 Command Injection 테스트 (새 창)
+            </a>
+        </div>
+
+        <div class="expected">
+            <strong>예상 결과:</strong> WAF가 명령어 삽입 패턴을 감지하고 차단해야 합니다.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. 📁 Local File Inclusion (LFI) 테스트</h2>
+        <p>파일 포함 공격은 시스템 파일에 무단 접근을 시도합니다.</p>
+
+        <h3>공격 샘플:</h3>
+        <div class="attack-sample">
+            ../../../etc/passwd<br>
+            ..\..\..\..\windows\system32\drivers\etc\hosts<br>
+            ....//....//....//etc/passwd<br>
+            /etc/passwd%00<br>
+            php://filter/read=convert.base64-encode/resource=/etc/passwd
+        </div>
+
+        <h3>테스트 URL:</h3>
+        <div class="url-example" id="lfiUrl">
+            <a href="#" onclick="testLFI()" target="_blank">
+                클릭하여 LFI 테스트 (새 창)
+            </a>
+        </div>
+
+        <div class="expected">
+            <strong>예상 결과:</strong> WAF가 경로 조작 시도를 감지하고 차단해야 합니다.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. 📤 악성 파일 업로드 테스트</h2>
+        <p>이 테스트는 실제 파일 업로드 폼에서 수행해야 합니다.</p>
+
+        <h3>테스트 방법:</h3>
+        <ol>
+            <li>DVWA의 Upload 페이지로 이동</li>
+            <li>아래 확장자의 파일을 업로드 시도:</li>
+        </ol>
+
+        <div class="attack-sample">
+            test.php<br>
+            malware.exe<br>
+            script.jsp<br>
+            backdoor.asp<br>
+            shell.phtml
+        </div>
+
+        <div class="url-example" id="uploadUrl">
+            <a href="#" onclick="openUploadPage()" target="_blank">
+                DVWA Upload 페이지 열기
+            </a>
+        </div>
+
+        <div class="expected">
+            <strong>예상 결과:</strong> WAF가 위험한 파일 확장자를 감지하고 업로드를 차단해야 합니다.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 종합 테스트 버튼</h2>
+        <p>모든 공격을 순차적으로 테스트합니다 (새 탭에서 열림):</p>
+        <button onclick="runAllTests()" class="dangerous">⚠️ 모든 공격 테스트 실행</button>
+        <p><small>이 버튼은 여러 공격을 연속으로 실행합니다. WAF 로그를 확인하여 차단 여부를 검증하세요.</small></p>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 WAF 로그 확인 방법</h2>
+        <p>테스트 후 다음 명령어로 WAF 차단 로그를 확인할 수 있습니다:</p>
+        <div class="attack-sample">
+            kubectl logs -l app=nginx-ingress -n ingress-nginx | grep -i "denied\|blocked\|403"
+        </div>
+        <p>또는 WAF 대시보드에서 실시간으로 로그를 모니터링하세요.</p>
+    </div>
+
+    <script>
+        let baseUrl = 'http://dvwatest-n-e-kr-protected.waftest.p-e.kr';
+
+        function updateUrls() {
+            baseUrl = document.getElementById('baseUrl').value;
+            if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+                baseUrl = 'http://' + baseUrl;
+            }
+            alert('URL이 업데이트되었습니다: ' + baseUrl);
+        }
+
+        function testSqlInjection() {
+            const payload = encodeURIComponent("' OR '1'='1");
+            const url = `${baseUrl}/vulnerabilities/sqli/?id=${payload}&Submit=Submit`;
+            window.open(url, '_blank');
+        }
+
+        function testXSS() {
+            const payload = encodeURIComponent('<script>alert("XSS")</script>');
+            const url = `${baseUrl}/vulnerabilities/xss_r/?name=${payload}`;
+            window.open(url, '_blank');
+        }
+
+        function testCommandInjection() {
+            const payload = encodeURIComponent('127.0.0.1; ls -la');
+            const url = `${baseUrl}/vulnerabilities/exec/?ip=${payload}&Submit=Submit`;
+            window.open(url, '_blank');
+        }
+
+        function testLFI() {
+            const payload = encodeURIComponent('../../../etc/passwd');
+            const url = `${baseUrl}/vulnerabilities/fi/?page=${payload}`;
+            window.open(url, '_blank');
+        }
+
+        function openUploadPage() {
+            const url = `${baseUrl}/vulnerabilities/upload/`;
+            window.open(url, '_blank');
+        }
+
+        function runAllTests() {
+            if (confirm('모든 공격 테스트를 실행하시겠습니까? 여러 창이 열릴 수 있습니다.')) {
+                setTimeout(() => testSqlInjection(), 500);
+                setTimeout(() => testXSS(), 1000);
+                setTimeout(() => testCommandInjection(), 1500);
+                setTimeout(() => testLFI(), 2000);
+                setTimeout(() => openUploadPage(), 2500);
+            }
+        }
+
+        // 페이지 로드 시 초기 URL 설정
+        window.onload = function() {
+            const urlInput = document.getElementById('baseUrl');
+            baseUrl = urlInput.value;
+        }
+    </script>
+</body>
+</html>
