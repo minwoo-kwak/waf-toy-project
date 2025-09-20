@@ -77,7 +77,7 @@ const SecurityTests: React.FC = () => {
 
     try {
       for (const url of quickTestUrls) {
-        const testTargetUrl = 'http://waftest.p-e.kr:31264';
+        const testTargetUrl = 'http://waftest.p-e.kr:31268';
         const fullUrl = testTargetUrl + url;
         window.open(fullUrl, '_blank', 'noopener,noreferrer');
         await new Promise(resolve => setTimeout(resolve, 300));
