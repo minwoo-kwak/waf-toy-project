@@ -68,3 +68,21 @@ export interface SecurityTestRequest {
   test_type: 'sql_injection' | 'xss' | 'path_traversal' | 'command_injection';
   payloads?: string[];
 }
+
+export interface ProxyTarget {
+  id: string;
+  name: string;
+  origin_url: string;
+  proxy_domain: string;
+  status: 'active' | 'inactive';
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProxyTargetRequest {
+  name: string;
+  origin_url: string;
+  proxy_domain: string;
+  status?: 'active' | 'inactive';
+}

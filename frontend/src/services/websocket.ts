@@ -21,7 +21,7 @@ class WebSocketService {
     }
 
     this.token = token;
-    const WS_URL = process.env.REACT_APP_WS_URL || 'ws://localhost/api/v1/ws';
+    const WS_URL = 'ws://waftest.p-e.kr/api/v1/ws';
     
     try {
       this.ws = new WebSocket(`${WS_URL}?token=${token}`);

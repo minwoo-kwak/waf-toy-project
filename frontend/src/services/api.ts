@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { LoginResponse, User } from '../types/auth';
-import { WAFLog, WAFStats, CustomRule, CustomRuleRequest, SecurityTest, SecurityTestRequest } from '../types/waf';
+import { WAFLog, WAFStats, CustomRule, CustomRuleRequest, SecurityTest, SecurityTestRequest, ProxyTarget, ProxyTargetRequest } from '../types/waf';
 import { ErrorResponse } from '../types/errors';
 import { API_ENDPOINTS, LOCAL_STORAGE_KEYS, DEFAULT_VALUES } from '../constants';
 
@@ -116,6 +116,38 @@ export const rulesAPI = {
 
   deleteRule: async (id: string): Promise<void> => {
     await api.delete(`${API_ENDPOINTS.RULES}/${id}`);
+  },
+};
+
+// Proxy Management API
+export const proxyAPI = {
+  createProxyTarget: async (proxy: ProxyTargetRequest): Promise<{ proxy_target: ProxyTarget }> => {
+    const response = await api.post('/api/v1/proxy/targets', proxy);
+    return response.data;
+  },
+
+  getProxyTargets: async (): Promise<{ proxy_targets: ProxyTarget[]; total: number }> => {
+    const response = await api.get('/api/v1/proxy/targets');
+    return response.data;
+  },
+
+  getProxyTarget: async (id: string): Promise<{ proxy_target: ProxyTarget }> => {
+    const response = await api.get(`/api/v1/proxy/targets/${id}`);
+    return response.data;
+  },
+
+  updateProxyTarget: async (id: string, proxy: Partial<ProxyTargetRequest>): Promise<{ proxy_target: ProxyTarget }> => {
+    const response = await api.put(`/api/v1/proxy/targets/${id}`, proxy);
+    return response.data;
+  },
+
+  deleteProxyTarget: async (id: string): Promise<void> => {
+    await api.delete(`/api/v1/proxy/targets/${id}`);
+  },
+
+  getActiveProxyTargets: async (): Promise<{ proxy_targets: ProxyTarget[]; total: number }> => {
+    const response = await api.get('/api/v1/proxy/targets/active');
+    return response.data;
   },
 };
 

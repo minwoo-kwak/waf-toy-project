@@ -20,17 +20,21 @@ type RuleK8sService interface {
 }
 
 type ruleK8sService struct {
-	log           *logrus.Logger
-	k8sClient     kubernetes.Interface
-	configMapName string
-	namespace     string
+	log             *logrus.Logger
+	k8sClient       kubernetes.Interface
+	configMapName   string
+	namespace       string
+	ingressName     string
+	ingressNamespace string
 }
 
 func NewRuleK8sService(log *logrus.Logger) RuleK8sService {
 	service := &ruleK8sService{
-		log:           log,
-		configMapName: utils.GetEnv("MODSECURITY_CONFIGMAP", "modsecurity-config"),
-		namespace:     utils.GetEnv("KUBERNETES_NAMESPACE", "ingress-nginx"),
+		log:              log,
+		configMapName:    utils.GetEnv("CONFIGMAP_NAME", "modsecurity-config"),
+		namespace:        utils.GetEnv("CONFIGMAP_NAMESPACE", "ingress-nginx"),
+		ingressName:      utils.GetEnv("INGRESS_NAME", "waf-ingress"),
+		ingressNamespace: utils.GetEnv("INGRESS_NAMESPACE", "default"),
 	}
 	
 	// Kubernetes 클라이언트 초기화 시도
@@ -61,21 +65,32 @@ func (s *ruleK8sService) InitializeK8sClient() error {
 }
 
 func (s *ruleK8sService) UpdateConfigMapAndIngress(rules []*models.CustomRule) error {
+	s.log.WithField("rules_count", len(rules)).Info("🎯 UpdateConfigMapAndIngress called")
+
 	if s.k8sClient == nil {
-		s.log.Debug("No Kubernetes client available, skipping K8s updates")
+		s.log.Error("🚨 No Kubernetes client available, skipping K8s updates")
 		return nil
 	}
 
+	s.log.Info("✅ Kubernetes client is available, proceeding with updates")
+
 	// ConfigMap 업데이트
+	s.log.Info("🔄 Starting ConfigMap update")
 	if err := s.updateConfigMap(rules); err != nil {
+		s.log.WithError(err).Error("🚨 ConfigMap update failed")
 		return fmt.Errorf("failed to update ConfigMap: %w", err)
 	}
+	s.log.Info("✅ ConfigMap update completed")
 
 	// Ingress annotation 업데이트
+	s.log.Info("🔄 Starting Ingress annotation update")
 	if err := s.updateIngressAnnotation(rules); err != nil {
+		s.log.WithError(err).Error("🚨 Ingress annotation update failed")
 		return fmt.Errorf("failed to update Ingress annotation: %w", err)
 	}
+	s.log.Info("✅ Ingress annotation update completed")
 
+	s.log.Info("🎉 All K8s updates completed successfully")
 	return nil
 }
 
@@ -117,11 +132,16 @@ func (s *ruleK8sService) updateConfigMap(rules []*models.CustomRule) error {
 
 func (s *ruleK8sService) updateIngressAnnotation(rules []*models.CustomRule) error {
 	ctx := context.Background()
-	// Ingress는 default namespace에 있음 (ConfigMap과 다름)
-	ingressClient := s.k8sClient.NetworkingV1().Ingresses("default")
-	
+	// Ingress 네임스페이스는 환경변수에서 설정
+	ingressClient := s.k8sClient.NetworkingV1().Ingresses(s.ingressNamespace)
+
+	s.log.WithFields(logrus.Fields{
+		"ingress_name": s.ingressName,
+		"ingress_namespace": s.ingressNamespace,
+	}).Info("🔍 Attempting to get Ingress")
+
 	// Ingress 가져오기
-	ingress, err := ingressClient.Get(ctx, "waf-ingress", metav1.GetOptions{})
+	ingress, err := ingressClient.Get(ctx, s.ingressName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get Ingress: %w", err)
 	}
@@ -165,9 +185,19 @@ SecRule REQUEST_URI "^/api/" "id:9998,phase:1,pass,nolog,ctl:ruleEngine=Off"`
 	
 	s.log.Info("Ingress ModSecurity annotation updated successfully")
 	
-	// NGINX 재시작
-	if err := s.restartNginxIngressController(); err != nil {
-		s.log.WithError(err).Warn("Failed to restart NGINX Ingress Controller")
+	// NGINX 재시작 (환경변수에 따라 조건부)
+	forceReload := utils.GetEnv("FORCE_INGRESS_RELOAD", "false")
+	s.log.Infof("FORCE_INGRESS_RELOAD environment variable: %s", forceReload)
+	
+	if forceReload == "true" {
+		s.log.Info("Attempting to restart NGINX Ingress Controller")
+		if err := s.restartNginxIngressController(); err != nil {
+			s.log.WithError(err).Warn("Failed to restart NGINX Ingress Controller")
+		} else {
+			s.log.Info("NGINX Ingress Controller restart initiated successfully")
+		}
+	} else {
+		s.log.Info("Skipping NGINX restart (FORCE_INGRESS_RELOAD=false)")
 	}
 	
 	return nil

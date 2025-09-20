@@ -41,13 +41,15 @@ func main() {
 	authService := services.NewAuthService(cfg, log)
 	wafService := services.NewWAFService(log)
 	ruleService := services.NewRuleServiceV2(log)
+	proxyService := services.NewProxyService(log)
 	securityTestService := services.NewSecurityTestService(log)
 	websocketService := services.NewWebSocketService(log, wafService)
-	
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, log)
 	wafHandler := handlers.NewWAFHandler(wafService, websocketService, log)
 	ruleHandler := handlers.NewRuleHandler(ruleService, log)
+	proxyHandler := handlers.NewProxyHandler(proxyService, log)
 	securityTestHandler := handlers.NewSecurityTestHandler(securityTestService, log)
 	
 	r := gin.Default()
@@ -123,6 +125,17 @@ func main() {
 			rules.GET("/:id", ruleHandler.GetRule)
 			rules.PUT("/:id", ruleHandler.UpdateRule)
 			rules.DELETE("/:id", ruleHandler.DeleteRule)
+		}
+
+		// Proxy targets management
+		proxy := protected.Group("/proxy")
+		{
+			proxy.POST("/targets", proxyHandler.CreateProxyTarget)
+			proxy.GET("/targets", proxyHandler.GetProxyTargets)
+			proxy.GET("/targets/:id", proxyHandler.GetProxyTarget)
+			proxy.PUT("/targets/:id", proxyHandler.UpdateProxyTarget)
+			proxy.DELETE("/targets/:id", proxyHandler.DeleteProxyTarget)
+			proxy.GET("/targets/active", proxyHandler.GetActiveProxyTargets)
 		}
 		
 		// Security testing

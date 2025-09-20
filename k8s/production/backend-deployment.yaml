@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: waf-backend
+  namespace: default
+  labels:
+    app: waf-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: waf-backend
+  template:
+    metadata:
+      labels:
+        app: waf-backend
+    spec:
+      serviceAccountName: waf-backend-service-account
+      containers:
+      - name: waf-backend
+        image: mwkwak3/waf-backend:v5.0.4
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: waf-backend-config
+        - secretRef:
+            name: waf-backend-secret
+        volumeMounts:
+        - name: sqlite-storage
+          mountPath: /app/data
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: sqlite-storage
+        persistentVolumeClaim:
+          claimName: waf-data-pvc

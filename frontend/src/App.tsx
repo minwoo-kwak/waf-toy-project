@@ -8,6 +8,7 @@ import {
   Security as SecurityIcon,
   Rule as RuleIcon,
   BugReport as BugReportIcon,
+  CloudQueue as ProxyIcon,
 } from '@mui/icons-material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './components/auth/LoginPage';
@@ -15,6 +16,7 @@ import AuthCallback from './components/auth/AuthCallback';
 import Dashboard from './components/dashboard/Dashboard';
 import SecurityTests from './components/security/SecurityTests';
 import RulesManagement from './components/rules/RulesManagement';
+import ProxyManagement from './components/proxy/ProxyManagement';
 
 const theme = createTheme({
   palette: {
@@ -107,6 +109,7 @@ const drawerWidth = 240;
 
 const navigationItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+  { text: 'Proxy Management', icon: <ProxyIcon />, path: '/proxy' },
   { text: 'Security Tests', icon: <BugReportIcon />, path: '/security' },
   { text: 'Custom Rules', icon: <RuleIcon />, path: '/rules' },
 ];
@@ -208,6 +211,16 @@ const AppContent: React.FC = () => {
           <ProtectedRoute>
             <MainLayout currentPath={currentPath}>
               <SecurityTests />
+            </MainLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/proxy"
+        element={
+          <ProtectedRoute>
+            <MainLayout currentPath={currentPath}>
+              <ProxyManagement />
             </MainLayout>
           </ProtectedRoute>
         }

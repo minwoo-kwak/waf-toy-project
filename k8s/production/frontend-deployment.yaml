@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: waf-frontend
+  namespace: default
+  labels:
+    app: waf-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: waf-frontend
+  template:
+    metadata:
+      labels:
+        app: waf-frontend
+    spec:
+      containers:
+      - name: waf-frontend
+        image: mwkwak3/waf-frontend:v3.5.5-hardcoded
+        ports:
+        - containerPort: 80
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5

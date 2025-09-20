@@ -48,7 +48,7 @@ func InitDB(log *logrus.Logger) error {
 	
 	// Auto Migration 실행
 	log.Info("Running database migrations")
-	if err := db.AutoMigrate(&models.User{}, &models.CustomRule{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.CustomRule{}, &models.ProxyTarget{}); err != nil {
 		log.WithError(err).Error("Failed to run database migrations")
 		return err
 	}

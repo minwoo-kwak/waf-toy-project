@@ -202,19 +202,29 @@ func (s *RuleServiceV2) validateRule(ruleText string) error {
 
 // updateK8sAsync updates Kubernetes resources asynchronously
 func (s *RuleServiceV2) updateK8sAsync(userID string) {
+	s.log.WithField("user_id", userID).Info("🔥 Starting K8s async update")
+
 	// DB에서 사용자의 모든 룰 가져오기
 	rules, err := s.repo.GetByUserID(userID)
 	if err != nil {
-		s.log.WithError(err).Error("Failed to get rules for K8s update")
+		s.log.WithError(err).Error("🚨 Failed to get rules for K8s update")
 		return
 	}
-	
+
+	s.log.WithFields(logrus.Fields{
+		"user_id": userID,
+		"rules_count": len(rules),
+	}).Info("🔍 Retrieved rules from DB for K8s update")
+
 	// K8s 업데이트
+	s.log.Info("🚀 Calling K8s service UpdateConfigMapAndIngress")
 	if err := s.k8sService.UpdateConfigMapAndIngress(rules); err != nil {
-		s.log.WithError(err).Error("Failed to update Kubernetes resources")
+		s.log.WithError(err).Error("🚨 Failed to update Kubernetes resources")
 	} else {
-		s.log.Info("Kubernetes resources updated successfully")
+		s.log.Info("✅ Kubernetes resources updated successfully")
 	}
+
+	s.log.WithField("user_id", userID).Info("🏁 Finished K8s async update")
 }
 
 // syncExistingRulesOnStartup synchronizes existing DB rules to ConfigMap on startup

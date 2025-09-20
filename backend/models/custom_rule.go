@@ -14,6 +14,17 @@ type CustomRule struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type ProxyTarget struct {
+	ID           string    `gorm:"primaryKey" json:"id"`
+	Name         string    `gorm:"not null" json:"name"`
+	OriginURL    string    `gorm:"type:text;not null" json:"origin_url"`
+	ProxyDomain  string    `gorm:"not null;unique" json:"proxy_domain"`
+	Status       string    `gorm:"default:active" json:"status"`
+	UserID       string    `gorm:"not null;index" json:"user_id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type User struct {
 	ID       string `gorm:"primaryKey" json:"id"`
 	Email    string `gorm:"unique;not null" json:"email"`
@@ -21,7 +32,8 @@ type User struct {
 	Picture  string `json:"picture"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	
+
 	// Relationships
-	CustomRules []CustomRule `gorm:"foreignKey:UserID" json:"custom_rules,omitempty"`
+	CustomRules  []CustomRule  `gorm:"foreignKey:UserID" json:"custom_rules,omitempty"`
+	ProxyTargets []ProxyTarget `gorm:"foreignKey:UserID" json:"proxy_targets,omitempty"`
 }

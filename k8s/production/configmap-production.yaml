@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: waf-backend-config
+  namespace: default
+data:
+  PORT: "8080"
+  CORS_ORIGIN: "http://waftest.p-e.kr"
+  GOOGLE_REDIRECT_URL: "http://waftest.p-e.kr/auth/callback"
+  LOG_LEVEL: "info"
+  TARGET_URL: "http://waftest.p-e.kr"
+  DB_PATH: "/app/data/waf.db"
+  INGRESS_NAME: "waf-ingress-production"
+  INGRESS_NAMESPACE: "default"
+  CONFIGMAP_NAME: "modsecurity-config"
+  CONFIGMAP_NAMESPACE: "ingress-nginx"
+  FORCE_INGRESS_RELOAD: "true"
+# Secret은 별도로 관리됩니다 (kubectl patch 명령어 사용)

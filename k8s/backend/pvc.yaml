@@ -10,4 +10,4 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: hostpath  # Docker Desktop 기본 StorageClass
+  storageClassName: nks-block-storage  # Naver Cloud NKS Block Storage
