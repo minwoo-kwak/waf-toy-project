@@ -18,7 +18,7 @@ spec:
       serviceAccountName: waf-backend-service-account
       containers:
       - name: waf-backend
-        image: mwkwak3/waf-backend:v5.0.4
+        image: mwkwak3/waf-backend:v6.0.0
         ports:
         - containerPort: 8080
         envFrom:

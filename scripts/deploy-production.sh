@@ -50,6 +50,10 @@ echo "🌐 Deploying frontend services..."
 kubectl apply -f k8s/production/frontend-deployment.yaml
 kubectl apply -f k8s/frontend/service.yaml
 
+# Deploy DVWA vulnerable test server
+echo "🎯 Deploying DVWA vulnerable test server..."
+kubectl apply -f k8s/dvwa/dvwa-deployment.yaml
+
 # Deploy ingress
 echo "🚪 Deploying production ingress..."
 kubectl apply -f k8s/production/ingress-production.yaml
@@ -58,6 +62,7 @@ kubectl apply -f k8s/production/ingress-production.yaml
 echo "⏳ Waiting for deployments to be ready..."
 kubectl wait --for=condition=available --timeout=300s deployment/waf-backend
 kubectl wait --for=condition=available --timeout=300s deployment/waf-frontend
+kubectl wait --for=condition=available --timeout=300s deployment/dvwa
 
 # Show deployment status
 echo "📊 Deployment Status:"
@@ -69,14 +74,18 @@ echo ""
 echo "🎉 Production deployment completed successfully!"
 echo ""
 echo "📋 Access Information:"
-echo "   Frontend: http://waftest.p-e.kr:31264"
-echo "   Backend API: http://waftest.p-e.kr:31264/api"
-echo "   Domain: waftest.p-e.kr → 175.45.204.150:31264"
+echo "   Frontend: http://waftest.p-e.kr:31268"
+echo "   Backend API: http://waftest.p-e.kr:31268/api"
+echo "   Domain: waftest.p-e.kr → 175.45.204.150:31268"
+echo "   DVWA Test Server: http://waftest.p-e.kr:30081 (vulnerable for testing)"
 echo ""
 echo "🔧 Next Steps:"
 echo "   1. Build and push Docker images with production environment variables"
 echo "   2. Update Google OAuth client credentials in Secret"
-echo "   3. Test the application: http://waftest.p-e.kr:31264"
+echo "   3. Test the application: http://waftest.p-e.kr:31268"
+echo "   4. Create proxy targets in the WAF dashboard"
+echo "   5. Test WAF protection with DVWA: http://waftest.p-e.kr:30081"
 echo ""
 echo "🛡️ ModSecurity WAF is enabled with OWASP CRS"
+echo "🎯 DVWA server ready for security testing"
 echo "📝 View logs: kubectl logs -n ingress-nginx deployment/ingress-nginx-controller"

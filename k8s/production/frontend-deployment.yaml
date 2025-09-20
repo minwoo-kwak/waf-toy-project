@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: waf-frontend
-        image: mwkwak3/waf-frontend:v3.5.5-hardcoded
+        image: mwkwak3/waf-frontend:v4.0.0
         ports:
         - containerPort: 80
         livenessProbe:
